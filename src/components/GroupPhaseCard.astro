@@ -32,7 +32,9 @@
   let countriesByCode = new Map();
   let groupOrder = null;
   let selectedThirds = new Set();
-  const isTouchDevice = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+  const isTouchDevice =
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || window.innerWidth <= 900);
   let touchMovePayload = null;
 
   const createNode = (tag, className, text) => {
@@ -244,6 +246,29 @@
           chip.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
+
+            if (
+              touchMovePayload?.type === 'group' &&
+              touchMovePayload.group === group.name &&
+              Number(touchMovePayload.index) !== index
+            ) {
+              const fromIndex = Number(touchMovePayload.index);
+              const toIndex = index;
+
+              if (!Number.isNaN(fromIndex) && !Number.isNaN(toIndex)) {
+                const listCodes = [...groupOrder[group.name]];
+                const [movedCode] = listCodes.splice(fromIndex, 1);
+                listCodes.splice(toIndex, 0, movedCode);
+                groupOrder[group.name] = listCodes;
+                touchMovePayload = null;
+
+                renderGroupsEditor();
+                renderThirdsSelector();
+                emitGroupsChanged();
+                return;
+              }
+            }
+
             touchMovePayload = {
               type: 'group',
               group: group.name,
@@ -548,9 +573,9 @@
     cursor: grab;
     width: 100%;
     text-align: left;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     line-height: 1.25;
     box-shadow: 0 6px 14px rgba(2, 6, 23, 0.2);
     transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;

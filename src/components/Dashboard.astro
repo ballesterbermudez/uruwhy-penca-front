@@ -412,6 +412,43 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     return normalizedPredicted === normalizedOfficial ? 'correct' : 'wrong';
   };
 
+  const buildRemainingCodes = (codes) => {
+    const remaining = new Map();
+
+    (codes ?? []).forEach((code) => {
+      const normalized = normalizeCode(code);
+
+      if (!normalized) {
+        return;
+      }
+
+      remaining.set(normalized, (remaining.get(normalized) ?? 0) + 1);
+    });
+
+    return remaining;
+  };
+
+  const getKnockoutSlotStatus = (predictedCode, remainingCodes, hasOfficialResults) => {
+    const normalizedPredicted = normalizeCode(predictedCode);
+
+    if (!hasOfficialResults) {
+      return 'pending';
+    }
+
+    if (!normalizedPredicted) {
+      return 'missing';
+    }
+
+    const available = remainingCodes.get(normalizedPredicted) ?? 0;
+
+    if (available <= 0) {
+      return 'wrong';
+    }
+
+    remainingCodes.set(normalizedPredicted, available - 1);
+    return 'correct';
+  };
+
   const createStatusBadge = (text, status) => {
     const badge = createNode('span', 'prediction-badge prediction-chip', text);
     badge.classList.add(`prediction-chip--${status}`);
@@ -490,10 +527,11 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     block.appendChild(createNode('h4', 'prediction-subtitle group-title', stageLabel));
 
     const list = createNode('ul', 'prediction-slot-list group-list');
+    const remainingCodes = buildRemainingCodes(officialCodes);
+    const hasOfficialResults = remainingCodes.size > 0;
 
-    (predictedCodes ?? []).forEach((code, index) => {
-      const officialCode = officialCodes?.[index] ?? null;
-      const status = getSlotStatus(code, officialCode);
+    (predictedCodes ?? []).forEach((code) => {
+      const status = getKnockoutSlotStatus(code, remainingCodes, hasOfficialResults);
       const item = createResultSlot(getCountryLabel(code), status);
       list.appendChild(item);
     });
@@ -522,8 +560,11 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     });
 
     Object.entries(predictedKnockout ?? {}).forEach(([stageKey, codes]) => {
-      codes.forEach((code, index) => {
-        const status = getSlotStatus(code, officialKnockout[stageKey]?.[index] ?? null);
+      const remainingCodes = buildRemainingCodes(officialKnockout[stageKey] ?? []);
+      const hasOfficialResults = remainingCodes.size > 0;
+
+      codes.forEach((code) => {
+        const status = getKnockoutSlotStatus(code, remainingCodes, hasOfficialResults);
 
         if (status === 'correct') correct += 1;
         if (status === 'wrong') wrong += 1;
@@ -2517,5 +2558,18 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     .results-stage-column-list--final {
       grid-template-columns: 1fr;
     }
+  }
+
+  .tab-panel-content--penca,
+  .tab-panel-content--penca .penca-board,
+  .tab-panel-content--penca .card,
+  .tab-panel-content--penca .group-card,
+  .tab-panel-content--penca .groups-grid,
+  .tab-panel-content--penca .knockout-wrapper,
+  .tab-panel-content--penca .knockout-grid,
+  .tab-panel-content--penca .bracket-canvas {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 </style>

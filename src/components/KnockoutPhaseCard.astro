@@ -31,7 +31,9 @@
   let knockoutState = null;
   let qualifiedCodes = [];
   let selectedThirds = new Set();
-  const isTouchDevice = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+  const isTouchDevice =
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || window.innerWidth <= 900);
   let touchMovePayload = null;
 
   const GROUP_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
@@ -227,8 +229,19 @@
       return false;
     }
 
-    const sourceStartIndex = toSlotIndex * 2;
-    const prevSlots = [sourceStartIndex, sourceStartIndex + 1];
+    // For stages with paired target slots (r16, qf, sf, final), allow placing
+    // in either of the two slots of the same matchup without crossing brackets.
+    let prevSlots;
+
+    if (toStageKey === 'r16' || toStageKey === 'qf' || toStageKey === 'sf' || toStageKey === 'final') {
+      const targetMatchIndex = Math.floor(toSlotIndex / 2);
+      const sourceStartIndex = targetMatchIndex * 4;
+      prevSlots = [sourceStartIndex, sourceStartIndex + 1, sourceStartIndex + 2, sourceStartIndex + 3];
+    } else {
+      const sourceStartIndex = toSlotIndex * 2;
+      prevSlots = [sourceStartIndex, sourceStartIndex + 1];
+    }
+
     return prevSlots.some((slotIdx) => prevStageSlots[slotIdx] === code);
   };
 
@@ -359,6 +372,16 @@
           team.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
+
+            if (code) {
+              removeCodeFromStageForward(stageKey, code);
+              touchMovePayload = null;
+              emitKnockoutChanged();
+              renderQualifiedPool();
+              renderKnockoutEditor();
+              return;
+            }
+
             setTouchMovePayload({
               type: 'slot',
               stage: stageKey,
@@ -564,8 +587,17 @@
       const yMid = (y1 + y2) / 2;
       const yTarget = rt.top + rt.height / 2 - wrapperRect.top;
 
-      const offset = 18;
-      const xMid = isRight ? xStart - offset : xStart + offset;
+      const horizontalSpan = Math.abs(xEnd - xStart);
+      const elbowDistance = Math.max(10, Math.min(28, horizontalSpan * 0.45));
+      let xMid = isRight ? xStart - elbowDistance : xStart + elbowDistance;
+
+      if (!isRight) {
+        xMid = Math.min(xMid, xEnd - 6);
+        xMid = Math.max(xMid, xStart + 6);
+      } else {
+        xMid = Math.max(xMid, xEnd + 6);
+        xMid = Math.min(xMid, xStart - 6);
+      }
 
       const merge = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       merge.setAttribute('d', `M ${xStart} ${y1} V ${y2}`);
@@ -913,14 +945,11 @@
 
   .knockout-wrapper {
     position: relative;
-    overflow-x: auto;
+    overflow-x: hidden;
     overflow-y: visible;
     width: 100%;
-    max-width: min(100vw, 100%);
     max-width: 100%;
     min-width: 0;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
     padding-bottom: 8px;
   }
 
@@ -940,9 +969,9 @@
     padding: 8px 0 10px;
     position: relative;
     z-index: 2;
-    width: max-content;
-    min-width: 1280px;
-    margin: 0 auto;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
   }
 
   .knockout-wrapper::-webkit-scrollbar {
@@ -959,17 +988,20 @@
     justify-content: center;
     align-items: center;
     gap: 30px;
-    width: max-content;
+    width: 100%;
     min-width: 0;
-    margin: 0 auto;
+    margin: 0;
+    flex-direction: row;
   }
 
   .bracket-side {
     display: flex;
     align-items: center;
-    gap: 24px;
-    flex: 1 1 0;
+    gap: 18px;
+    flex: 1 1 auto;
     min-width: 0;
+    width: min(100%, 470px);
+    max-width: 100%;
   }
 
   .bracket-side.left {
@@ -985,9 +1017,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 34px;
-    flex: 0 0 clamp(260px, 28vw, 340px);
+    gap: 12px;
+    flex: 0 0 clamp(170px, 18vw, 220px);
     min-width: 0;
+    width: auto;
   }
 
   .bracket-col {
@@ -1053,20 +1086,23 @@
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 8px;
     width: 100%;
   }
 
   .bracket-col.stage-final .knockout-slot {
-    width: 118px;
-    min-width: 118px;
-    max-width: 118px;
-    flex: 0 0 118px;
+    width: calc(50% - 4px);
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
   }
 
   .knockout-slot {
     position: relative;
     height: var(--match-height);
+    width: 100%;
+    min-width: 0;
+    max-width: none;
     border: 1px solid rgba(148, 163, 184, 0.3);
     border-radius: 6px;
     padding: 4px 6px;
@@ -1144,6 +1180,7 @@
 
   .slot-team {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    font-size: 12px;
   }
 
   .seeded-team {
@@ -1190,12 +1227,30 @@
   }
 
   @media (max-width: 768px) {
-    .knockout-grid {
-      min-width: 1040px;
+    .bracket-canvas {
+      gap: 22px;
     }
 
-    .bracket-canvas {
-      gap: 20px;
+    .bracket-side {
+      gap: 14px;
+    }
+
+    .bracket-center {
+      flex: 0 0 clamp(130px, 16vw, 170px);
+    }
+
+    .knockout-title {
+      font-size: 11px;
+    }
+
+    .knockout-slot {
+      height: 36px;
+      padding: 3px 4px;
+    }
+
+    .slot-team {
+      font-size: 11px;
+      padding: 7px 8px;
     }
 
     .bracket-col.stage-r32 .knockout-slots,
@@ -1207,15 +1262,11 @@
       gap: 12px;
     }
 
-    .bracket-center {
-      flex: 0 0 260px;
-    }
-
     .bracket-col.stage-final .knockout-slot {
-      width: 108px;
-      min-width: 108px;
-      max-width: 108px;
-      flex-basis: 108px;
+      width: calc(50% - 4px);
+      min-width: 0;
+      max-width: 100%;
+      flex-basis: auto;
     }
 
     .qualified-pool {
@@ -1231,8 +1282,29 @@
   }
 
   @media (max-width: 520px) {
-    .knockout-grid {
-      min-width: 980px;
+    .bracket-canvas {
+      gap: 16px;
+    }
+
+    .bracket-side {
+      gap: 10px;
+    }
+
+    .bracket-center {
+      flex: 0 0 120px;
+    }
+
+    .knockout-title {
+      font-size: 10px;
+    }
+
+    .knockout-slot {
+      height: 34px;
+    }
+
+    .slot-team {
+      font-size: 10px;
+      padding: 6px 7px;
     }
 
     .qualified-pool {
