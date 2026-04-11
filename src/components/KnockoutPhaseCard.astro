@@ -99,7 +99,7 @@
       return false;
     }
 
-    return isValidAdvancement(payload.code, payload.stage, targetStageKey, targetSlotIndex);
+    return isValidAdvancement(payload.code, payload.stage, targetStageKey, targetSlotIndex, payload.slotIndex);
   };
 
   const refreshValidTargets = () => {
@@ -252,7 +252,7 @@
     return [matchupIndex * 2, matchupIndex * 2 + 1];
   };
 
-  const isValidAdvancement = (code, fromStageKey, toStageKey, toSlotIndex) => {
+  const isValidAdvancement = (code, fromStageKey, toStageKey, toSlotIndex, fromSlotIndex = null) => {
     if (!knockoutState) {
       return false;
     }
@@ -262,9 +262,30 @@
       return false;
     }
 
-    // Reordering inside the same stage should always be valid.
+    // Reordering inside the same stage is constrained to the same matchup llave.
     if (fromStageKey === toStageKey) {
-      return true;
+      const stagesRestrictedToSameMatchup = new Set(['r16', 'qf', 'sf', 'final']);
+
+      if (!stagesRestrictedToSameMatchup.has(toStageKey)) {
+        return true;
+      }
+
+      const stageSlots = knockoutState[fromStageKey];
+
+      if (!Array.isArray(stageSlots)) {
+        return false;
+      }
+
+      const parsedFromSlotIndex = Number(fromSlotIndex);
+      const sourceIndex = Number.isNaN(parsedFromSlotIndex)
+        ? stageSlots.findIndex((slotCode) => slotCode === code)
+        : parsedFromSlotIndex;
+
+      if (sourceIndex < 0) {
+        return false;
+      }
+
+      return Math.floor(sourceIndex / 2) === Math.floor(toSlotIndex / 2);
     }
 
     const fromStageIndex = KNOCKOUT_STAGES.findIndex((stage) => stage.key === fromStageKey);
@@ -355,7 +376,7 @@
         return;
       }
 
-      if (!isValidAdvancement(code, payload?.stage, stageKey, slotIndex)) {
+      if (!isValidAdvancement(code, payload?.stage, stageKey, slotIndex, payload?.slotIndex)) {
         return;
       }
 
