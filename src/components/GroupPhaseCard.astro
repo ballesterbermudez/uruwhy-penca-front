@@ -184,6 +184,8 @@
       return [];
     }
 
+    syncSelectedThirds();
+
     const orderedGroups = GROUPS_SETUP.map((group) => groupOrder[group.name] ?? []);
     const topTwo = orderedGroups.flatMap((codes) => codes.slice(0, 2));
     
@@ -209,6 +211,8 @@
     if (!groupsBoard || !groupOrder) {
       return;
     }
+
+    syncSelectedThirds();
 
     groupsBoard.innerHTML = '';
     const fragment = document.createDocumentFragment();
@@ -249,10 +253,23 @@
 
               if (!Number.isNaN(fromIndex) && !Number.isNaN(toIndex)) {
                 const listCodes = [...groupOrder[group.name]];
+                const previousThirdCode = listCodes[2];
+
+                if (typeof previousThirdCode === 'string') {
+                  releaseSelectedThird(previousThirdCode);
+                }
+
                 const [movedCode] = listCodes.splice(fromIndex, 1);
+
+                if (typeof movedCode === 'string') {
+                  releaseSelectedThird(movedCode);
+                }
+
                 listCodes.splice(toIndex, 0, movedCode);
                 groupOrder[group.name] = listCodes;
                 touchMovePayload = null;
+
+                syncSelectedThirds();
 
                 renderGroupsEditor();
                 renderThirdsSelector();
@@ -297,10 +314,23 @@
           }
 
           const listCodes = [...groupOrder[group.name]];
+          const previousThirdCode = listCodes[2];
+
+          if (typeof previousThirdCode === 'string') {
+            releaseSelectedThird(previousThirdCode);
+          }
+
           const [movedCode] = listCodes.splice(fromIndex, 1);
+
+          if (typeof movedCode === 'string') {
+            releaseSelectedThird(movedCode);
+          }
+
           listCodes.splice(toIndex, 0, movedCode);
           groupOrder[group.name] = listCodes;
           touchMovePayload = null;
+
+          syncSelectedThirds();
 
           renderGroupsEditor();
           renderThirdsSelector();
@@ -335,9 +365,22 @@
             }
 
             const listCodes = [...groupOrder[group.name]];
+            const previousThirdCode = listCodes[2];
+
+            if (typeof previousThirdCode === 'string') {
+              releaseSelectedThird(previousThirdCode);
+            }
+
             const [movedCode] = listCodes.splice(fromIndex, 1);
+
+            if (typeof movedCode === 'string') {
+              releaseSelectedThird(movedCode);
+            }
+
             listCodes.splice(toIndex, 0, movedCode);
             groupOrder[group.name] = listCodes;
+
+            syncSelectedThirds();
 
             renderGroupsEditor();
             renderThirdsSelector();
@@ -384,6 +427,20 @@
       .filter((third) => third !== null);
   };
 
+  const syncSelectedThirds = () => {
+    const currentThirds = new Set(getThirdPlaces().map((entry) => entry.code));
+
+    selectedThirds = new Set(
+      Array.from(selectedThirds).filter((code) => currentThirds.has(code)),
+    );
+  };
+
+  const releaseSelectedThird = (code) => {
+    if (selectedThirds.has(code)) {
+      selectedThirds.delete(code);
+    }
+  };
+
   const deriveSelectedThirds = (initialPrediction) => {
     if (Array.isArray(initialPrediction?.selectedThirds)) {
       return new Set(initialPrediction.selectedThirds.filter((code) => typeof code === 'string').slice(0, 8));
@@ -412,6 +469,8 @@
     if (!thirdsList || !thirdsSelector) {
       return;
     }
+
+    syncSelectedThirds();
 
     const thirds = getThirdPlaces();
 
@@ -481,6 +540,7 @@
 
     groupOrder = loadGroupPrediction(countries, initialPrediction?.groupOrder);
     selectedThirds = deriveSelectedThirds(initialPrediction);
+    syncSelectedThirds();
     renderGroupsEditor();
     renderThirdsSelector();
     emitGroupsChanged();
