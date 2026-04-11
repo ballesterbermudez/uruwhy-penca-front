@@ -31,6 +31,8 @@
   let knockoutState = null;
   let qualifiedCodes = [];
   let selectedThirds = new Set();
+  const isTouchDevice = typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+  let touchMovePayload = null;
 
   const GROUP_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
@@ -59,6 +61,12 @@
     });
 
     return chip;
+  };
+
+  const setTouchMovePayload = (payload) => {
+    touchMovePayload = payload;
+    renderQualifiedPool();
+    renderKnockoutEditor();
   };
 
   const createEmptyKnockout = () => ({
@@ -246,6 +254,26 @@
       const isUsed = isCodeInKnockout(code);
 
       chip.classList.toggle('is-used', isUsed);
+      if (isTouchDevice && touchMovePayload?.type === 'pool' && touchMovePayload.code === code) {
+        chip.classList.add('is-mobile-selected');
+      }
+
+      if (isTouchDevice) {
+        chip.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          if (isUsed) {
+            return;
+          }
+
+          setTouchMovePayload({
+            type: 'pool',
+            code,
+          });
+        });
+      }
+
       chip.title = isUsed
         ? 'Este país ya está ubicado en 16avos.'
         : 'Clasificado disponible.';
@@ -284,6 +312,7 @@
 
       clearCodeFromStage(stageKey, code, slotIndex);
       knockoutState[stageKey][slotIndex] = code;
+      touchMovePayload = null;
       emitKnockoutChanged();
       renderQualifiedPool();
       renderKnockoutEditor();
@@ -317,6 +346,28 @@
         });
         team.classList.add('slot-team');
         team.dataset.teamCode = code;
+        if (
+          isTouchDevice &&
+          touchMovePayload?.type === 'slot' &&
+          touchMovePayload.stage === stageKey &&
+          Number(touchMovePayload.slotIndex) === index
+        ) {
+          team.classList.add('is-mobile-selected');
+        }
+
+        if (stageKey !== 'r32' && isTouchDevice) {
+          team.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setTouchMovePayload({
+              type: 'slot',
+              stage: stageKey,
+              slotIndex: index,
+              code,
+            });
+          });
+        }
+
         if (stageKey === 'r32') {
           team.draggable = true;
           team.classList.add('seeded-team');
@@ -331,10 +382,19 @@
           const clickedTeam = event.target.closest('.slot-team');
 
           if (clickedTeam && code) {
+            if (isTouchDevice) {
+              return;
+            }
+
             knockoutState[stageKey][index] = null;
             emitKnockoutChanged();
             renderQualifiedPool();
             renderKnockoutEditor();
+            return;
+          }
+
+          if (isTouchDevice && touchMovePayload?.code) {
+            placeCodeInKnockout(stageKey, index, touchMovePayload.code, touchMovePayload);
           }
         });
 
@@ -565,6 +625,27 @@
   };
 
   if (poolDropzone) {
+    if (isTouchDevice) {
+      poolDropzone.addEventListener('click', () => {
+        if (!touchMovePayload) {
+          return;
+        }
+
+        if (touchMovePayload.type === 'slot' && touchMovePayload.stage !== 'r32' && touchMovePayload.code) {
+          removeCodeFromStageForward(touchMovePayload.stage, touchMovePayload.code);
+          touchMovePayload = null;
+          emitKnockoutChanged();
+          renderQualifiedPool();
+          renderKnockoutEditor();
+          return;
+        }
+
+        touchMovePayload = null;
+        renderQualifiedPool();
+        renderKnockoutEditor();
+      });
+    }
+
     poolDropzone.addEventListener('dragover', (event) => {
       event.preventDefault();
       poolDropzone.classList.add('drop-target');
@@ -833,7 +914,14 @@
   .knockout-wrapper {
     position: relative;
     overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: visible;
+    width: 100%;
+    max-width: min(100vw, 100%);
+    max-width: 100%;
+    min-width: 0;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    padding-bottom: 8px;
   }
 
   .bracket-lines {
@@ -852,6 +940,9 @@
     padding: 8px 0 10px;
     position: relative;
     z-index: 2;
+    width: max-content;
+    min-width: 1280px;
+    margin: 0 auto;
   }
 
   .knockout-wrapper::-webkit-scrollbar {
@@ -868,8 +959,9 @@
     justify-content: center;
     align-items: center;
     gap: 30px;
-    width: 100%;
-    min-width: 1280px;
+    width: max-content;
+    min-width: 0;
+    margin: 0 auto;
   }
 
   .bracket-side {
@@ -908,7 +1000,7 @@
 
   .knockout-title {
     margin: 0 0 6px;
-    font-size: 11px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: #67e8f9;
@@ -994,7 +1086,7 @@
   }
 
   .slot-placeholder {
-    font-size: 11px;
+    font-size: 12px;
     color: #94a3b8;
     padding: 0 6px;
   }
@@ -1007,8 +1099,8 @@
     background: rgba(30, 41, 59, 0.9);
     color: var(--text);
     border-radius: 999px;
-    font-size: 12px;
-    padding: 7px 11px;
+    font-size: 13px;
+    padding: 8px 12px;
     cursor: grab;
     width: 100%;
     min-width: 0;
@@ -1025,6 +1117,7 @@
     border-color: rgba(103, 232, 249, 0.35);
     background: linear-gradient(155deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.9));
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.28);
+    font-size: 13px;
     font-weight: 600;
   }
 
@@ -1041,6 +1134,12 @@
   .team-chip:active,
   .slot-team:active {
     cursor: grabbing;
+  }
+
+  .team-chip.is-mobile-selected,
+  .slot-team.is-mobile-selected {
+    border-color: rgba(34, 211, 238, 0.95) !important;
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.24), 0 6px 14px rgba(15, 23, 42, 0.28) !important;
   }
 
   .slot-team {
@@ -1075,7 +1174,7 @@
     color: var(--text);
     border-radius: 6px;
     padding: 6px 8px;
-    font-size: 12px;
+    font-size: 13px;
     cursor: grab;
     transition: all 0.2s ease;
     text-align: left;
@@ -1091,9 +1190,12 @@
   }
 
   @media (max-width: 768px) {
+    .knockout-grid {
+      min-width: 1040px;
+    }
+
     .bracket-canvas {
       gap: 20px;
-      min-width: 1120px;
     }
 
     .bracket-col.stage-r32 .knockout-slots,
@@ -1122,13 +1224,17 @@
     }
 
     .qualified-pool .team-chip {
-      font-size: 11px;
-      padding: 6px 9px;
+      font-size: 12px;
+      padding: 7px 10px;
     }
 
   }
 
   @media (max-width: 520px) {
+    .knockout-grid {
+      min-width: 980px;
+    }
+
     .qualified-pool {
       grid-template-columns: 1fr;
     }
