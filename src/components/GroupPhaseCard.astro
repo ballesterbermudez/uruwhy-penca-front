@@ -233,14 +233,6 @@
 
         chip.classList.add('group-chip');
         chip.dataset.rank = String(index + 1);
-        if (
-          isTouchDevice &&
-          touchMovePayload?.type === 'group' &&
-          touchMovePayload.group === group.name &&
-          Number(touchMovePayload.index) === index
-        ) {
-          chip.classList.add('is-mobile-selected');
-        }
 
         if (isTouchDevice) {
           chip.addEventListener('click', (event) => {
@@ -631,11 +623,6 @@
     background: rgba(245, 158, 11, 1);
     border-color: rgba(255, 251, 235, 0.9);
     color: #111827;
-  }
-
-  .group-chip.is-mobile-selected {
-    border-color: rgba(34, 211, 238, 0.95) !important;
-    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.24), 0 8px 18px rgba(2, 6, 23, 0.3) !important;
   }
 
   @media (max-width: 768px) {

@@ -1,9 +1,9 @@
 <div class="card penca-card">
   <h2>🥇 Eliminatoria</h2>
   <p class="penca-hint">Las llaves de 16avos se arman automáticamente según el orden de grupos y mejores terceros.</p>
-
-  <div class="qualified-pool" data-qualified-pool></div>
+  <p class="penca-hint">EL BRACKET SE CONSTRUYE ARRASTRANDO LOS EQUIPOS A LA SIGUIENTE FASE DESDE EL MISMO BRACKET.</p>
   <div class="pool-dropzone" data-pool-dropzone>Soltá acá para quitar de eliminatoria o clickea encima de el país</div>
+
   <div class="knockout-wrapper" data-knockout-wrapper>
     <svg class="bracket-lines" data-bracket-lines></svg>
     <div class="knockout-grid" data-knockout-board></div>
@@ -266,11 +266,6 @@
       });
       const isUsed = isCodeInKnockout(code);
 
-      chip.classList.toggle('is-used', isUsed);
-      if (isTouchDevice && touchMovePayload?.type === 'pool' && touchMovePayload.code === code) {
-        chip.classList.add('is-mobile-selected');
-      }
-
       if (isTouchDevice) {
         chip.addEventListener('click', (event) => {
           event.preventDefault();
@@ -359,26 +354,18 @@
         });
         team.classList.add('slot-team');
         team.dataset.teamCode = code;
-        if (
-          isTouchDevice &&
-          touchMovePayload?.type === 'slot' &&
-          touchMovePayload.stage === stageKey &&
-          Number(touchMovePayload.slotIndex) === index
-        ) {
-          team.classList.add('is-mobile-selected');
-        }
-
-        if (stageKey !== 'r32' && isTouchDevice) {
+        if (isTouchDevice) {
           team.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
 
-            if (code) {
-              removeCodeFromStageForward(stageKey, code);
-              touchMovePayload = null;
-              emitKnockoutChanged();
-              renderQualifiedPool();
-              renderKnockoutEditor();
+            const isSameSelection =
+              touchMovePayload?.type === 'slot' &&
+              touchMovePayload.stage === stageKey &&
+              Number(touchMovePayload.slotIndex) === index;
+
+            if (isSameSelection) {
+              setTouchMovePayload(null);
               return;
             }
 
@@ -1161,21 +1148,9 @@
     border-color: rgba(103, 232, 249, 0.65);
   }
 
-  .qualified-pool .team-chip.is-used {
-    border-color: rgba(16, 185, 129, 0.7);
-    background: linear-gradient(155deg, rgba(6, 78, 59, 0.95), rgba(15, 23, 42, 0.92));
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.45), 0 6px 14px rgba(15, 23, 42, 0.28);
-  }
-
   .team-chip:active,
   .slot-team:active {
     cursor: grabbing;
-  }
-
-  .team-chip.is-mobile-selected,
-  .slot-team.is-mobile-selected {
-    border-color: rgba(34, 211, 238, 0.95) !important;
-    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.24), 0 6px 14px rgba(15, 23, 42, 0.28) !important;
   }
 
   .slot-team {
