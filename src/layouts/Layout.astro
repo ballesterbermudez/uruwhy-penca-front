@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Penca uruWhy</title>
+  </head>
+  <body>
+    <header class="session-bar" data-session-bar>
+      <div class="session-copy">
+        <span class="session-dot" aria-hidden="true"></span>
+        <span data-session-status>Verificando sesión...</span>
+      </div>
+
+      <a class="session-action" href="http://localhost:3000/auth/discord" data-session-action hidden>
+        Conectar Discord
+      </a>
+
+      <div class="session-user" data-session-user hidden>
+        <img class="session-avatar" data-session-avatar alt="Avatar de Discord" hidden />
+        <div class="session-user-copy">
+          <strong data-session-username></strong>
+          <span>Sesión activa con Discord</span>
+        </div>
+      </div>
+
+      <button class="session-logout" type="button" data-session-logout hidden>
+        Cerrar sesión
+      </button>
+    </header>
+
+    <slot />
+
+    <script is:inline>
+      const status = document.querySelector('[data-session-status]');
+      const action = document.querySelector('[data-session-action]');
+      const user = document.querySelector('[data-session-user]');
+      const avatar = document.querySelector('[data-session-avatar]');
+      const username = document.querySelector('[data-session-username]');
+      const logout = document.querySelector('[data-session-logout]');
+      const bar = document.querySelector('[data-session-bar]');
+
+      if (status && action && user && avatar && username && logout && bar) {
+        const setLoggedOut = () => {
+          bar.dataset.state = 'logged-out';
+          status.textContent = 'No has iniciado sesión con Discord';
+          action.hidden = false;
+          user.hidden = true;
+          logout.hidden = true;
+        };
+
+        const setLoggedIn = (session) => {
+          const avatarUrl = `https://cdn.discordapp.com/avatars/${session.discordId}/${session.avatar}.png?size=64`;
+
+          bar.dataset.state = 'logged-in';
+          status.textContent = 'Conectado con Discord';
+          action.hidden = true;
+          user.hidden = false;
+          logout.hidden = false;
+          username.textContent = session.username;
+          avatar.src = avatarUrl;
+          avatar.hidden = false;
+        };
+
+        fetch('http://localhost:3000/auth/me', {
+          credentials: 'include',
+        })
+          .then((response) => response.ok ? response.json() : Promise.reject(new Error('No session')))
+          .then((data) => {
+            const session = data?.user;
+
+            if (session?.discordId && session?.username && session?.avatar) {
+              setLoggedIn(session);
+              return;
+            }
+
+            setLoggedOut();
+          })
+          .catch(() => {
+            action.hidden = true;
+            user.hidden = true;
+            logout.hidden = true;
+            status.textContent = 'No se pudo verificar la sesión';
+          });
+
+        logout.addEventListener('click', () => {
+          fetch('http://localhost:3000/auth/logout', {
+            credentials: 'include',
+          })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error('Logout failed');
+              }
+
+              window.location.reload();
+            })
+            .catch(() => {
+              status.textContent = 'No se pudo cerrar la sesión';
+            });
+        });
+      }
+    </script>
+  </body>
+</html>
+
+<style>
+  body {
+    padding-top: 88px;
+    min-height: 100vh;
+    position: relative;
+    background: transparent;
+    overflow-x: hidden;
+  }
+
+  :root {
+    --bg: #020617;
+    --bg-soft: #0f172a;
+    --primary: #7c3aed;
+    --primary-2: #4f46e5;
+    --accent: #22d3ee;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+  }
+
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    font-family: Inter, system-ui, sans-serif;
+    color: var(--text);
+  }
+
+  html {
+    background: #020617;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: #020617;
+    background-image:
+      radial-gradient(1200px 820px at 10% -10%, rgba(8, 145, 178, 0.34), transparent 62%),
+      radial-gradient(980px 760px at 88% 0%, rgba(16, 185, 129, 0.22), transparent 60%),
+      radial-gradient(860px 620px at 52% 120%, rgba(30, 64, 175, 0.24), transparent 64%),
+      linear-gradient(180deg, #020617 0%, #061428 48%, #020617 100%);
+    background-repeat: no-repeat;
+    background-size: cover;
+  }
+
+  .session-bar {
+    position: fixed;
+    inset: 16px 16px auto;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background: rgba(2, 6, 23, 0.78);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 18px 40px rgba(2, 6, 23, 0.35);
+  }
+
+  .session-copy {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .session-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #f59e0b;
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.16);
+    flex: 0 0 auto;
+  }
+
+  .session-bar[data-state='logged-in'] .session-dot {
+    background: #22c55e;
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.16);
+  }
+
+  .session-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #5865f2, #4752c4);
+    color: white;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 10px 20px rgba(88, 101, 242, 0.25);
+  }
+
+  .session-action[hidden] {
+    display: none !important;
+  }
+
+  .session-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .session-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    object-fit: cover;
+    flex: 0 0 auto;
+  }
+
+  .session-user-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .session-user-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .session-user-copy span {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .session-logout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  }
+
+  .session-logout:hover {
+    transform: translateY(-1px);
+    border-color: rgba(248, 113, 113, 0.3);
+    background: rgba(248, 113, 113, 0.12);
+  }
+
+  .session-logout:focus-visible {
+    outline: 2px solid rgba(34, 211, 238, 0.55);
+    outline-offset: 2px;
+  }
+
+  .session-logout[hidden] {
+    display: none !important;
+  }
+
+  .session-bar[data-state='logged-in'] .session-action {
+    display: none;
+  }
+
+  .session-bar[data-state='logged-out'] .session-user {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    body {
+      padding-top: 112px;
+    }
+
+    .session-bar {
+      inset: 12px 12px auto;
+      flex-wrap: wrap;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .session-copy {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .session-user {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>

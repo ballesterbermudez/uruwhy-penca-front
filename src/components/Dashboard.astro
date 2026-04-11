@@ -1,0 +1,2388 @@
+---
+import GroupPhaseCard from './GroupPhaseCard.astro';
+import KnockoutPhaseCard from './KnockoutPhaseCard.astro';
+---
+
+<section id="hero">
+  <div class="title-wrapper">
+    <span class="emoji">⚽</span>
+    <span class="title">Penca uruWhy 2026</span>
+  </div>
+
+  <p>Competi con tus amigos y domina el Mundial.</p>
+
+  <div class="actions">
+    <a href="http://localhost:3000/auth/discord" class="btn discord" data-discord-button hidden>
+      <svg viewBox="0 0 127.14 96.36" class="icon">
+        <path
+          fill="currentColor"
+          d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15Z"
+        />
+      </svg>
+      Conectar Discord
+    </a>
+
+    <a href="/admin" class="btn admin" data-admin-button hidden>Panel admin</a>
+  </div>
+</section>
+
+<section id="tabs" class="tabs-shell">
+  <div class="tabs-header">
+    <button class="tab-btn active" type="button" data-tab-button="dashboard">Dashboard</button>
+    <button class="tab-btn" type="button" data-tab-button="penca">Mi Penca</button>
+    <button class="tab-btn" type="button" data-tab-button="resultados">Resultados</button>
+  </div>
+
+  <div class="tab-panel active" data-tab-panel="dashboard">
+    <section id="grid">
+      <div class="card">
+        <h2>🏆 Ranking</h2>
+        <ul class="data-list" data-ranking-list>
+          <li>Cargando ranking...</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>📅 Partidos</h2>
+        <ul class="data-list" data-matches-list>
+          <li>Cargando partidos...</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🌍 Paises</h2>
+        <ul class="data-list" data-countries-list>
+          <li>Cargando paises...</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <div class="tab-panel" data-tab-panel="penca" hidden>
+    <div class="tab-panel-content tab-panel-content--penca">
+      <section id="penca-board" class="penca-board">
+        <GroupPhaseCard />
+        <KnockoutPhaseCard />
+      </section>
+      <div class="penca-submit">
+        <button type="button" class="btn prediction" data-submit-prediction disabled>Realizar prediccion</button>
+        <p class="submit-hint" data-submit-hint>Completá grupos y eliminatoria para poder enviar.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" data-tab-panel="resultados" hidden>
+    <div class="tab-panel-content tab-panel-content--resultados">
+      <section class="results-board">
+        <div class="results-hero card">
+          <div class="results-hero-copy">
+            <p class="results-kicker">Comparación oficial</p>
+            <h2>Resultados</h2>
+            <p class="penca-hint">Se actualiza solo cuando el admin cambia el orden real. Verde significa acierto, rojo significa error.</p>
+          </div>
+          <div class="results-legend">
+            <span class="legend-chip legend-chip--correct" data-summary-correct>Correcto 0</span>
+            <span class="legend-chip legend-chip--wrong" data-summary-wrong>Incorrecto 0</span>
+            <span class="legend-chip legend-chip--pending" data-summary-pending>Pendiente 0</span>
+            <span class="legend-chip legend-chip--missing" data-summary-missing>Sin definir 0</span>
+          </div>
+        </div>
+
+        <div class="results-card card">
+          <div class="results-card-header">
+            <h3>Penca guardada</h3>
+            <span class="results-card-meta" data-results-meta>Cargando resultados...</span>
+          </div>
+          <div class="predictions-list" data-predictions-list>
+            <p class="list-item empty">Cargando pencas...</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  (() => {
+  const discordButton = document.querySelector('[data-discord-button]');
+  const adminButton = document.querySelector('[data-admin-button]');
+  const rankingList = document.querySelector('[data-ranking-list]');
+  const matchesList = document.querySelector('[data-matches-list]');
+  const countriesList = document.querySelector('[data-countries-list]');
+  const predictionsList = document.querySelector('[data-predictions-list]');
+  const resultsMeta = document.querySelector('[data-results-meta]');
+  const summaryCorrect = document.querySelector('[data-summary-correct]');
+  const summaryWrong = document.querySelector('[data-summary-wrong]');
+  const summaryPending = document.querySelector('[data-summary-pending]');
+  const summaryMissing = document.querySelector('[data-summary-missing]');
+  const predictionButton = document.querySelector('[data-submit-prediction]');
+  const submitHint = document.querySelector('[data-submit-hint]');
+  const tabButtons = document.querySelectorAll('[data-tab-button]');
+  const tabPanels = document.querySelectorAll('[data-tab-panel]');
+  const dashboardTabButton = document.querySelector('[data-tab-button="dashboard"]');
+  const pencaTabButton = document.querySelector('[data-tab-button="penca"]');
+  const dashboardTabPanel = document.querySelector('[data-tab-panel="dashboard"]');
+  const pencaTabPanel = document.querySelector('[data-tab-panel="penca"]');
+  const resultadosTabButton = document.querySelector('[data-tab-button="resultados"]');
+  const resultadosTabPanel = document.querySelector('[data-tab-panel="resultados"]');
+  const API_URL = 'http://localhost:3000';
+  const ADMIN_DISCORD_ID = '179134666626826241';
+  const GROUPS_ORDER = [
+    'Grupo A',
+    'Grupo B',
+    'Grupo C',
+    'Grupo D',
+    'Grupo E',
+    'Grupo F',
+    'Grupo G',
+    'Grupo H',
+    'Grupo I',
+    'Grupo J',
+    'Grupo K',
+    'Grupo L',
+  ];
+  const KNOCKOUT_STAGES = [
+    ['r32', '16avos'],
+    ['r16', 'Octavos'],
+    ['qf', 'Cuartos'],
+    ['sf', 'Semifinal'],
+    ['final', 'Final'],
+    ['champion', 'Campeón'],
+  ];
+
+  const dashboardState = {
+    users: [],
+    matches: [],
+    countries: [],
+  };
+
+  let sessionUser = null;
+  let currentPrediction = {
+    groupOrder: null,
+    knockout: null,
+  };
+  let officialResults = {
+    groupOrder: null,
+    knockout: null,
+  };
+  let savedPredictions = [];
+  let lastSavedSnapshot = '';
+  let autosaveTimeoutId = null;
+
+  const createNode = (tag, className, text) => {
+    const node = document.createElement(tag);
+
+    if (className) {
+      node.className = className;
+    }
+
+    if (typeof text === 'string') {
+      node.textContent = text;
+    }
+
+    return node;
+  };
+
+  const renderEmptyState = (listElement, text) => {
+    if (!listElement) {
+      return;
+    }
+
+    listElement.innerHTML = '';
+    const emptyItem = createNode('li', 'list-item empty', text);
+    listElement.appendChild(emptyItem);
+  };
+
+  const formatKickoff = (kickoff) => {
+    const date = new Date(kickoff);
+
+    if (Number.isNaN(date.getTime())) {
+      return 'Fecha no disponible';
+    }
+
+    return date.toLocaleString('es-UY', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const normalizeCode = (code) => {
+    if (typeof code !== 'string') {
+      return null;
+    }
+
+    const normalized = code.trim().toUpperCase();
+    return normalized.length ? normalized : null;
+  };
+
+  const normalizeGroupKey = (groupName) => {
+    if (typeof groupName !== 'string') {
+      return null;
+    }
+
+    const raw = groupName.trim();
+    if (!raw.length) {
+      return null;
+    }
+
+    const match = raw.match(/(?:grupo|group)?\s*([a-l])/i);
+    if (!match) {
+      return raw;
+    }
+
+    return `Grupo ${match[1].toUpperCase()}`;
+  };
+
+  const normalizeGroupOrder = (groupOrder) => {
+    if (!groupOrder || typeof groupOrder !== 'object' || Array.isArray(groupOrder)) {
+      return null;
+    }
+
+    const entries = Object.entries(groupOrder);
+    const normalized = {};
+
+    entries.forEach(([groupName, codes]) => {
+      if (!Array.isArray(codes)) {
+        return;
+      }
+
+      const normalizedGroupName = normalizeGroupKey(groupName);
+      if (!normalizedGroupName) {
+        return;
+      }
+
+      normalized[normalizedGroupName] = codes
+        .map((code) => normalizeCode(code))
+        .filter((code) => Boolean(code))
+        .slice(0, 4);
+    });
+
+    return Object.keys(normalized).length ? normalized : null;
+  };
+
+  const normalizeKnockout = (knockout) => {
+    if (!knockout || typeof knockout !== 'object' || Array.isArray(knockout)) {
+      return null;
+    }
+
+    const stages = [
+      ['r32', 32],
+      ['r16', 16],
+      ['qf', 8],
+      ['sf', 4],
+      ['final', 2],
+      ['champion', 1],
+    ];
+
+    const normalized = {};
+
+    stages.forEach(([stage, size]) => {
+      const source = knockout[stage];
+
+      if (!Array.isArray(source)) {
+        normalized[stage] = Array(size).fill(null);
+        return;
+      }
+
+      const slots = source.slice(0, size).map((code) => normalizeCode(code));
+
+      while (slots.length < size) {
+        slots.push(null);
+      }
+
+      normalized[stage] = slots;
+    });
+
+    return normalized;
+  };
+
+  const normalizeOfficialGroupOrder = (groupOrder) => {
+    if (!groupOrder || typeof groupOrder !== 'object' || Array.isArray(groupOrder)) {
+      return null;
+    }
+
+    const normalized = {};
+
+    Object.entries(groupOrder).forEach(([groupName, codes]) => {
+      if (!Array.isArray(codes)) {
+        return;
+      }
+
+      const normalizedGroupName = normalizeGroupKey(groupName);
+      if (!normalizedGroupName) {
+        return;
+      }
+
+      normalized[normalizedGroupName] = codes.slice(0, 4).map((code) => normalizeCode(code));
+
+      while (normalized[normalizedGroupName].length < 4) {
+        normalized[normalizedGroupName].push(null);
+      }
+    });
+
+    return Object.keys(normalized).length ? normalized : null;
+  };
+
+  const normalizeOfficialKnockout = (knockout) => {
+    if (!knockout || typeof knockout !== 'object' || Array.isArray(knockout)) {
+      return null;
+    }
+
+    const stages = [
+      ['r32', 32],
+      ['r16', 16],
+      ['qf', 8],
+      ['sf', 4],
+      ['final', 2],
+      ['champion', 1],
+    ];
+
+    const normalized = {};
+
+    stages.forEach(([stage, size]) => {
+      const source = knockout[stage];
+
+      if (!Array.isArray(source)) {
+        normalized[stage] = Array(size).fill(null);
+        return;
+      }
+
+      const slots = source.slice(0, size).map((code) => normalizeCode(code));
+
+      while (slots.length < size) {
+        slots.push(null);
+      }
+
+      normalized[stage] = slots;
+    });
+
+    return normalized;
+  };
+
+  const getCountryLabel = (code) => {
+    const normalizedCode = normalizeCode(code);
+    const country = dashboardState.countries.find((item) => item.code === normalizedCode);
+
+    if (!country) {
+      return normalizedCode ?? '—';
+    }
+
+    return `${country.flag} ${country.name}`;
+  };
+
+  const setOfficialResults = (results) => {
+    officialResults = {
+      groupOrder: normalizeOfficialGroupOrder(results?.groupOrder),
+      knockout: normalizeOfficialKnockout(results?.knockout),
+    };
+
+    if (resultsMeta) {
+      const updatedAt = results?.updatedAt ? new Date(results.updatedAt) : null;
+
+      resultsMeta.textContent = updatedAt && !Number.isNaN(updatedAt.getTime())
+        ? `Actualizado por Tito · ${updatedAt.toLocaleString('es-UY', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`
+        : 'Aún no hay resultados oficiales cargados.';
+    }
+  };
+
+  const isAdminUser = () => sessionUser?.discordId === ADMIN_DISCORD_ID;
+
+  const getSlotStatus = (predictedCode, officialCode) => {
+    const normalizedPredicted = normalizeCode(predictedCode);
+    const normalizedOfficial = normalizeCode(officialCode);
+
+    if (!normalizedOfficial) {
+      return 'pending';
+    }
+
+    if (!normalizedPredicted) {
+      return 'missing';
+    }
+
+    return normalizedPredicted === normalizedOfficial ? 'correct' : 'wrong';
+  };
+
+  const createStatusBadge = (text, status) => {
+    const badge = createNode('span', 'prediction-badge prediction-chip', text);
+    badge.classList.add(`prediction-chip--${status}`);
+    badge.dataset.status = status;
+    return badge;
+  };
+
+  const applyResultStatusStyles = (slot, badge, status) => {
+    if (!slot || !badge) {
+      return;
+    }
+
+    if (status === 'correct') {
+      slot.style.background = 'rgba(22, 101, 52, 0.52)';
+      slot.style.borderColor = 'rgba(34, 197, 94, 0.86)';
+      badge.style.background = 'linear-gradient(135deg, rgba(22, 101, 52, 0.68), rgba(34, 197, 94, 0.24))';
+      badge.style.borderColor = 'rgba(34, 197, 94, 0.66)';
+      badge.style.color = '#dcfce7';
+      return;
+    }
+
+    if (status === 'wrong') {
+      slot.style.background = 'rgba(127, 29, 29, 0.52)';
+      slot.style.borderColor = 'rgba(239, 68, 68, 0.86)';
+      badge.style.background = 'linear-gradient(135deg, rgba(127, 29, 29, 0.68), rgba(239, 68, 68, 0.24))';
+      badge.style.borderColor = 'rgba(239, 68, 68, 0.66)';
+      badge.style.color = '#fee2e2';
+      return;
+    }
+
+    if (status === 'missing') {
+      slot.style.background = 'rgba(113, 63, 18, 0.4)';
+      slot.style.borderColor = 'rgba(250, 204, 21, 0.48)';
+      badge.style.color = '#fde68a';
+      return;
+    }
+
+    slot.style.background = 'rgba(15, 23, 42, 0.56)';
+    slot.style.borderColor = 'rgba(148, 163, 184, 0.28)';
+  };
+
+  const createResultSlot = (label, status, rankText = null) => {
+    const item = createNode('li', 'prediction-slot group-row');
+    item.dataset.status = status;
+    item.classList.add(`prediction-slot--${status}`);
+
+    if (rankText) {
+      item.appendChild(createNode('span', 'group-rank', rankText));
+    }
+
+    const badge = createStatusBadge(label, status);
+    applyResultStatusStyles(item, badge, status);
+    item.appendChild(badge);
+    return item;
+  };
+
+  const renderPredictionGroupBlock = (groupName, predictedCodes, officialCodes) => {
+    const block = createNode('article', 'group-card prediction-subcard prediction-subcard--group');
+    block.appendChild(createNode('h4', 'prediction-subtitle group-title', groupName));
+
+    const list = createNode('ul', 'prediction-slot-list group-list');
+
+    (predictedCodes ?? []).forEach((code, index) => {
+      const officialCode = officialCodes?.[index] ?? null;
+      const status = getSlotStatus(code, officialCode);
+      const item = createResultSlot(getCountryLabel(code), status, String(index + 1));
+      list.appendChild(item);
+    });
+
+    block.appendChild(list);
+    return block;
+  };
+
+  const renderPredictionKnockoutBlock = (stageKey, stageLabel, predictedCodes, officialCodes) => {
+    const block = createNode('article', 'group-card prediction-subcard prediction-subcard--group');
+    block.appendChild(createNode('h4', 'prediction-subtitle group-title', stageLabel));
+
+    const list = createNode('ul', 'prediction-slot-list group-list');
+
+    (predictedCodes ?? []).forEach((code, index) => {
+      const officialCode = officialCodes?.[index] ?? null;
+      const status = getSlotStatus(code, officialCode);
+      const item = createResultSlot(getCountryLabel(code), status);
+      list.appendChild(item);
+    });
+
+    block.appendChild(list);
+    return block;
+  };
+
+  const summarizePrediction = (predictedGroupOrder, predictedKnockout) => {
+    const officialGroupOrder = officialResults.groupOrder ?? {};
+    const officialKnockout = officialResults.knockout ?? {};
+    let correct = 0;
+    let wrong = 0;
+    let pending = 0;
+    let missing = 0;
+
+    Object.entries(predictedGroupOrder ?? {}).forEach(([groupName, codes]) => {
+      codes.forEach((code, index) => {
+        const status = getSlotStatus(code, officialGroupOrder[groupName]?.[index] ?? null);
+
+        if (status === 'correct') correct += 1;
+        if (status === 'wrong') wrong += 1;
+        if (status === 'pending') pending += 1;
+        if (status === 'missing') missing += 1;
+      });
+    });
+
+    Object.entries(predictedKnockout ?? {}).forEach(([stageKey, codes]) => {
+      codes.forEach((code, index) => {
+        const status = getSlotStatus(code, officialKnockout[stageKey]?.[index] ?? null);
+
+        if (status === 'correct') correct += 1;
+        if (status === 'wrong') wrong += 1;
+        if (status === 'pending') pending += 1;
+        if (status === 'missing') missing += 1;
+      });
+    });
+
+    return { correct, wrong, pending, missing };
+  };
+
+  const renderPredictionsBoard = () => {
+    if (!predictionsList) {
+      return;
+    }
+
+    predictionsList.innerHTML = '';
+
+    const visiblePrediction = (sessionUser?.discordId
+      ? savedPredictions.find((item) => item.discordId === sessionUser.discordId)
+      : null) ?? savedPredictions[0] ?? null;
+
+    if (!visiblePrediction) {
+      renderEmptyState(predictionsList, 'Todavía no hay resultados para mostrar.');
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    const officialGroupOrder = officialResults.groupOrder ?? {};
+    const officialKnockout = officialResults.knockout ?? {};
+    const storedPayload = visiblePrediction?.payload ?? {};
+    const groupOrder = normalizeGroupOrder(storedPayload.groupOrder);
+    const knockout = normalizeKnockout(storedPayload.knockout);
+
+    const item = createNode('article', 'prediction-card');
+    const top = createNode('div', 'prediction-card-top');
+    const title = createNode('strong', 'prediction-card-title', visiblePrediction.username ?? 'Usuario desconocido');
+
+    top.appendChild(title);
+    item.appendChild(top);
+
+    if (!groupOrder || !knockout) {
+      item.appendChild(createNode('p', 'prediction-empty', 'Prediccion incompleta o invalida.'));
+      fragment.appendChild(item);
+      predictionsList.appendChild(fragment);
+      return;
+    }
+
+    const summary = summarizePrediction(groupOrder, knockout);
+    if (summaryCorrect) summaryCorrect.textContent = `Correcto ${summary.correct}`;
+    if (summaryWrong) summaryWrong.textContent = `Incorrecto ${summary.wrong}`;
+    if (summaryPending) summaryPending.textContent = `Pendiente ${summary.pending}`;
+    if (summaryMissing) summaryMissing.textContent = `Sin definir ${summary.missing}`;
+
+    const layout = createNode('div', 'prediction-layout');
+    const groupPanel = createNode('section', 'prediction-panel');
+    groupPanel.appendChild(createNode('h4', 'prediction-section-label', 'Fase de grupos'));
+
+    const groupGrid = createNode('div', 'groups-grid results-groups-grid');
+    GROUPS_ORDER.forEach((groupName) => {
+      const codes = groupOrder[groupName] ?? [];
+      groupGrid.appendChild(renderPredictionGroupBlock(groupName, codes, officialGroupOrder[groupName] ?? []));
+    });
+    groupPanel.appendChild(groupGrid);
+
+    const knockoutPanel = createNode('section', 'prediction-panel');
+    knockoutPanel.classList.add('prediction-panel--knockout');
+    knockoutPanel.appendChild(createNode('h4', 'prediction-section-label', 'Eliminatoria'));
+
+    const knockoutGrid = createNode('div', 'groups-grid results-knockout-grid-simple');
+    KNOCKOUT_STAGES.forEach(([stageKey, stageLabel]) => {
+      knockoutGrid.appendChild(renderPredictionKnockoutBlock(stageKey, stageLabel, knockout[stageKey], officialKnockout[stageKey] ?? []));
+    });
+    knockoutPanel.appendChild(knockoutGrid);
+
+    layout.appendChild(groupPanel);
+    layout.appendChild(knockoutPanel);
+    item.appendChild(layout);
+
+    fragment.appendChild(item);
+
+    predictionsList.appendChild(fragment);
+  };
+
+  const loadOfficialResults = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/official-results`, { cache: 'no-store' });
+
+      if (!response.ok) {
+        throw new Error('No official results');
+      }
+
+      const data = await response.json();
+      setOfficialResults(data?.officialResults);
+    } catch {
+      setOfficialResults(null);
+    }
+  };
+
+  const loadPredictions = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/predictions`, { cache: 'no-store' });
+
+      if (!response.ok) {
+        throw new Error('No predictions');
+      }
+
+      const data = await response.json();
+      savedPredictions = Array.isArray(data?.predictions) ? data.predictions : [];
+    } catch {
+      savedPredictions = [];
+    }
+  };
+
+  const refreshResultsView = async () => {
+    await Promise.all([loadOfficialResults(), loadPredictions()]);
+    renderPredictionsBoard();
+  };
+
+  let resultsBroadcastChannel = null;
+  try {
+    resultsBroadcastChannel = new BroadcastChannel('penca-results');
+    resultsBroadcastChannel.addEventListener('message', (event) => {
+      if (event?.data?.type === 'official-results-updated') {
+        void refreshResultsView();
+      }
+    });
+  } catch {
+    resultsBroadcastChannel = null;
+  }
+  const setCurrentPrediction = (prediction) => {
+    currentPrediction = {
+      groupOrder: normalizeGroupOrder(prediction?.groupOrder),
+      knockout: normalizeKnockout(prediction?.knockout),
+    };
+  };
+
+  const getDraftPayload = () => {
+    const payload = {};
+
+    if (currentPrediction.groupOrder) {
+      payload.groupOrder = currentPrediction.groupOrder;
+    }
+
+    if (currentPrediction.knockout) {
+      payload.knockout = currentPrediction.knockout;
+    }
+
+    return payload;
+  };
+
+  const queueDraftSave = () => {
+    if (!sessionUser?.discordId) {
+      return;
+    }
+
+    const payload = getDraftPayload();
+
+    if (!Object.keys(payload).length) {
+      return;
+    }
+
+    const snapshot = JSON.stringify(payload);
+
+    if (snapshot === lastSavedSnapshot) {
+      return;
+    }
+
+    if (autosaveTimeoutId) {
+      clearTimeout(autosaveTimeoutId);
+    }
+
+    autosaveTimeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/predictions/draft`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: snapshot,
+        });
+
+        if (response.ok) {
+          lastSavedSnapshot = snapshot;
+        }
+      } catch {
+        // Ignore autosave network errors; user can still submit manually.
+      }
+    }, 700);
+  };
+
+  const isGroupOrderComplete = (groupOrder) => {
+    if (!groupOrder || typeof groupOrder !== 'object' || Array.isArray(groupOrder)) {
+      return false;
+    }
+
+    const groups = Object.values(groupOrder);
+
+    if (groups.length !== 12) {
+      return false;
+    }
+
+    return groups.every((codes) => {
+      return Array.isArray(codes) && codes.length === 4 && codes.every((code) => typeof code === 'string' && code.length > 0);
+    });
+  };
+
+  const isKnockoutComplete = (knockout) => {
+    if (!knockout || typeof knockout !== 'object' || Array.isArray(knockout)) {
+      return false;
+    }
+
+    const requiredRounds = [
+      ['r32', 32],
+      ['r16', 16],
+      ['qf', 8],
+      ['sf', 4],
+      ['final', 2],
+      ['champion', 1],
+    ];
+
+    return requiredRounds.every(([key, size]) => {
+      const slots = knockout[key];
+      return Array.isArray(slots) && slots.length === size && slots.every((code) => typeof code === 'string' && code.length > 0);
+    });
+  };
+
+  const hasCompletePrediction = () => {
+    const { groupOrder, knockout } = currentPrediction;
+    return isGroupOrderComplete(groupOrder) && isKnockoutComplete(knockout);
+  };
+
+  const updatePredictionButtonState = () => {
+    if (!predictionButton || !submitHint) {
+      return;
+    }
+
+    if (!sessionUser?.discordId) {
+      predictionButton.disabled = true;
+      submitHint.textContent = 'Inicia sesion con Discord para enviar tu prediccion.';
+      return;
+    }
+
+    const readyToSubmit = hasCompletePrediction();
+    predictionButton.disabled = !readyToSubmit;
+    submitHint.textContent = readyToSubmit
+      ? 'Tu prediccion esta lista para enviarse.'
+      : 'Completá grupos y eliminatoria para poder enviar.';
+  };
+
+  const enforceDashboardTab = () => {
+    tabButtons.forEach((button) => {
+      button.classList.toggle('active', button === dashboardTabButton);
+    });
+
+    tabPanels.forEach((panel) => {
+      const shouldShow = panel === dashboardTabPanel;
+      panel.hidden = !shouldShow;
+      panel.classList.toggle('active', shouldShow);
+    });
+  };
+
+  const updatePencaAccess = () => {
+    const isLoggedIn = Boolean(sessionUser?.discordId);
+
+    if (!pencaTabButton || !pencaTabPanel) {
+      return;
+    }
+
+    pencaTabButton.disabled = !isLoggedIn;
+    pencaTabButton.classList.toggle('is-locked', !isLoggedIn);
+    pencaTabButton.title = isLoggedIn ? '' : 'Inicia sesion con Discord para acceder a Mi Penca.';
+
+    if (!isLoggedIn) {
+      pencaTabPanel.hidden = true;
+      pencaTabPanel.classList.remove('active');
+      enforceDashboardTab();
+    }
+  };
+
+  const setupTabs = () => {
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const tab = button.dataset.tabButton;
+
+        if (tab === 'penca' && !sessionUser?.discordId) {
+          alert('Necesitas iniciar sesion con Discord para acceder a Mi Penca.');
+          enforceDashboardTab();
+          return;
+        }
+
+        tabButtons.forEach((otherButton) => {
+          otherButton.classList.toggle('active', otherButton === button);
+        });
+
+        tabPanels.forEach((panel) => {
+          const shouldShow = panel.dataset.tabPanel === tab;
+          panel.hidden = !shouldShow;
+          panel.classList.toggle('active', shouldShow);
+        });
+
+        updatePredictionButtonState();
+
+        if (tab === 'resultados') {
+          void refreshResultsView();
+        }
+      });
+    });
+  };
+
+  const setupPredictionSubmit = () => {
+    if (!predictionButton) {
+      return;
+    }
+
+    predictionButton.addEventListener('click', async () => {
+      if (!sessionUser?.discordId) {
+        alert('Necesitas iniciar sesion con Discord para enviar tu prediccion.');
+        updatePredictionButtonState();
+        return;
+      }
+
+      const { groupOrder, knockout } = currentPrediction;
+
+      if (!isGroupOrderComplete(groupOrder) || !isKnockoutComplete(knockout)) {
+        alert('Tu prediccion no esta completa. Revisa grupos y eliminatoria.');
+        updatePredictionButtonState();
+        return;
+      }
+
+      const confirmed = window.confirm('Quieres enviar realmente tu prediccion?');
+
+      if (!confirmed) {
+        return;
+      }
+
+      predictionButton.disabled = true;
+      predictionButton.classList.add('is-loading');
+
+      try {
+        const response = await fetch(`${API_URL}/api/predictions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            groupOrder,
+            knockout,
+          }),
+        });
+
+        if (!response.ok) {
+          let errorMessage = 'No se pudo guardar la prediccion.';
+
+          try {
+            const errorBody = await response.json();
+            errorMessage = errorBody?.message || errorMessage;
+          } catch {
+            // Ignore JSON parse errors and keep fallback message.
+          }
+
+          throw new Error(errorMessage);
+        }
+
+        alert('Prediccion enviada y guardada correctamente.');
+        lastSavedSnapshot = JSON.stringify(getDraftPayload());
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error inesperado al enviar prediccion.';
+        alert(message);
+      } finally {
+        predictionButton.classList.remove('is-loading');
+        updatePredictionButtonState();
+      }
+    });
+  };
+
+  const initializePenca = () => {
+    const countriesByCode = new Map(dashboardState.countries.map((country) => [country.code, country]));
+
+    window.dispatchEvent(
+      new CustomEvent('penca:init', {
+        detail: {
+          countries: dashboardState.countries,
+          countriesByCode,
+          initialPrediction: currentPrediction,
+        },
+      }),
+    );
+  };
+
+  const renderRanking = (users) => {
+    if (!rankingList) {
+      return;
+    }
+
+    if (!users.length) {
+      renderEmptyState(rankingList, 'No hay usuarios cargados.');
+      return;
+    }
+
+    rankingList.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    users.forEach((user, index) => {
+      const item = createNode('li', 'list-item ranking-item');
+      const top = createNode('div', 'item-top ranking-row');
+
+      top.appendChild(createNode('span', 'rank-badge', `#${index + 1} `));
+      top.appendChild(createNode('strong', 'item-title', user.username));
+      top.appendChild(createNode('span', 'points-chip', ` ${user.points} pts`));
+
+      item.appendChild(top);
+      fragment.appendChild(item);
+    });
+
+    rankingList.appendChild(fragment);
+  };
+
+  const renderMatches = (matches) => {
+    if (!matchesList) {
+      return;
+    }
+
+    if (!matches.length) {
+      renderEmptyState(matchesList, 'No hay partidos cargados.');
+      return;
+    }
+
+    matchesList.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    matches.forEach((match) => {
+      const home = match.homeTeam ? `${match.homeTeam.flag} ${match.homeTeam.name} ` : match.homeCountryCode;
+      const away = match.awayTeam ? `${match.awayTeam.flag} ${match.awayTeam.name} ` : match.awayCountryCode;
+
+      const item = createNode('li', 'list-item match-item');
+      const top = createNode('div', 'item-top');
+      const bottom = createNode('div', 'item-bottom');
+
+      top.appendChild(createNode('strong', 'item-title teams', `${home} vs ${away}`));
+
+      if (match.score) {
+        top.appendChild(createNode('span', 'score-chip', `${match.score.home}-${match.score.away}`));
+      } else {
+        top.appendChild(createNode('span', 'score-chip upcoming', 'Proximo'));
+      }
+
+      bottom.appendChild(createNode('span', 'item-meta', match.stage));
+      bottom.appendChild(createNode('span', 'item-meta match-date', formatKickoff(match.kickoff)));
+
+      item.appendChild(top);
+      item.appendChild(bottom);
+      fragment.appendChild(item);
+    });
+
+    matchesList.appendChild(fragment);
+  };
+
+  const renderCountries = (countries) => {
+    if (!countriesList) {
+      return;
+    }
+
+    if (!countries.length) {
+      renderEmptyState(countriesList, 'No hay paises cargados.');
+      return;
+    }
+
+    countriesList.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    countries.forEach((country) => {
+      const item = createNode('li', 'list-item country-item');
+      const top = createNode('div', 'item-top');
+
+      top.appendChild(createNode('strong', 'item-title', `${country.flag} ${country.name} `));
+      top.appendChild(createNode('span', 'confederation-chip', country.confederation));
+
+      item.appendChild(top);
+      fragment.appendChild(item);
+    });
+
+    countriesList.appendChild(fragment);
+  };
+
+  const authRequest = fetch(`${API_URL}/auth/me`, {
+    credentials: 'include',
+  })
+    .then((response) => (response.ok ? response.json() : { user: null }))
+    .then((data) => {
+      sessionUser = data?.user ?? null;
+
+      if (!discordButton) {
+        return;
+      }
+
+      if (sessionUser?.discordId) {
+        discordButton.hidden = true;
+      } else {
+        discordButton.hidden = false;
+      }
+
+      if (adminButton) {
+        adminButton.hidden = !isAdminUser();
+      }
+    })
+    .catch(() => {
+      sessionUser = null;
+
+      if (discordButton) {
+        discordButton.hidden = true;
+      }
+
+      if (adminButton) {
+        adminButton.hidden = true;
+      }
+    });
+
+  const dashboardRequest = fetch(`${API_URL}/api/dashboard`)
+    .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No data'))))
+    .then((data) => {
+      dashboardState.users = data?.users ?? [];
+      dashboardState.matches = data?.matches ?? [];
+      dashboardState.countries = data?.countries ?? [];
+
+      renderRanking(dashboardState.users);
+      renderMatches(dashboardState.matches);
+      renderCountries(dashboardState.countries);
+      renderPredictionsBoard();
+    })
+    .catch(() => {
+      renderEmptyState(rankingList, 'No se pudo cargar el ranking.');
+      renderEmptyState(matchesList, 'No se pudieron cargar los partidos.');
+      renderEmptyState(countriesList, 'No se pudieron cargar los paises.');
+    });
+
+  let refreshIntervalId = null;
+
+  const predictionRequest = authRequest.then(async () => {
+    if (!sessionUser?.discordId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/predictions/me`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const payload = data?.prediction?.payload;
+
+      setCurrentPrediction(payload);
+
+      const hydratedPayload = getDraftPayload();
+      if (Object.keys(hydratedPayload).length) {
+        lastSavedSnapshot = JSON.stringify(hydratedPayload);
+      }
+    } catch {
+      // Ignore hydration failures and continue with empty state.
+    }
+  });
+
+  Promise.all([authRequest, dashboardRequest, predictionRequest, refreshResultsView()]).then(() => {
+    setupTabs();
+    setupPredictionSubmit();
+    initializePenca();
+    updatePencaAccess();
+    updatePredictionButtonState();
+
+    if (refreshIntervalId) {
+      clearInterval(refreshIntervalId);
+    }
+
+    refreshIntervalId = setInterval(() => {
+      void refreshResultsView();
+    }, 15000);
+  });
+
+  window.addEventListener('focus', () => {
+    void refreshResultsView();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      void refreshResultsView();
+    }
+  });
+
+  window.addEventListener('penca:groups-changed', (event) => {
+    const nextGroupOrder = event.detail?.groupOrder;
+
+    if (nextGroupOrder && typeof nextGroupOrder === 'object') {
+      currentPrediction.groupOrder = nextGroupOrder;
+      queueDraftSave();
+    }
+
+    updatePredictionButtonState();
+  });
+
+  window.addEventListener('penca:knockout-changed', (event) => {
+    const nextKnockout = event.detail?.knockout;
+
+    if (nextKnockout && typeof nextKnockout === 'object') {
+      currentPrediction.knockout = nextKnockout;
+      queueDraftSave();
+    }
+
+    updatePredictionButtonState();
+  });
+  })();
+</script>
+
+<style>
+  #hero {
+    text-align: center;
+    padding: 80px 20px 40px;
+  }
+
+  .title-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .title {
+    font-size: 48px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #7c3aed, #22d3ee);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .emoji {
+    font-size: 42px;
+    line-height: 1;
+  }
+
+  p {
+    color: var(--muted);
+    font-size: 18px;
+    margin-top: 10px;
+  }
+
+  .actions {
+    margin-top: 25px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .btn.discord {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    color: white;
+    background: linear-gradient(135deg, #5865F2, #4752C4);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 0 12px rgba(88, 101, 242, 0.4);
+    transition: all 0.2s ease;
+  }
+
+  .btn.discord[hidden] {
+    display: none !important;
+  }
+
+  .btn.discord:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 18px rgba(88, 101, 242, 0.7);
+  }
+
+  .btn.admin {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 12px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    color: #ecfeff;
+    background: linear-gradient(135deg, #0f766e, #14b8a6);
+    border: 1px solid rgba(20, 184, 166, 0.35);
+    box-shadow: 0 0 14px rgba(20, 184, 166, 0.18);
+    transition: all 0.2s ease;
+  }
+
+  .btn.admin[hidden] {
+    display: none !important;
+  }
+
+  .btn.admin:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 18px rgba(20, 184, 166, 0.35);
+  }
+
+  .icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .tabs-shell {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 20px 20px;
+  }
+
+  .tabs-header {
+    display: inline-flex;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(8px);
+    margin: 0 auto 18px;
+  }
+
+  .tab-btn {
+    border: none;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    background: transparent;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .tab-btn.active {
+    color: white;
+    background: linear-gradient(135deg, #334155, #1e293b);
+  }
+
+  .tab-btn.is-locked {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .tab-panel[hidden] {
+    display: none !important;
+  }
+
+  .tab-panel-content {
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+    min-width: 0;
+  }
+
+  .tab-panel-content--penca,
+  .tab-panel-content--resultados {
+    width: 100%;
+  }
+
+  .tab-panel-content--penca > *,
+  .tab-panel-content--resultados > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #grid {
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 20px;
+    border-radius: 18px;
+    backdrop-filter: blur(12px);
+    transition: 0.25s;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(124, 58, 237, 0.5);
+    box-shadow: 0 0 25px rgba(124, 58, 237, 0.2);
+  }
+
+  .card h2 {
+    margin: 0 0 12px;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .data-list {
+    overflow: auto;
+    padding-right: 4px;
+    max-height: 360px;
+  }
+
+  .list-item {
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 0;
+  }
+
+  .list-item:last-child {
+    border-bottom: none;
+  }
+
+  .list-item.empty {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .item-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .item-bottom {
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .item-title {
+    font-size: 14px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .item-title.teams {
+    white-space: normal;
+  }
+
+  .item-meta {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .rank-badge,
+  .points-chip,
+  .score-chip,
+  .confederation-chip {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(15, 23, 42, 0.7);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #cbd5e1;
+    line-height: 1.6;
+    flex: 0 0 auto;
+  }
+
+  .rank-badge {
+    min-width: 46px;
+    text-align: center;
+    color: #86efac;
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+
+  .ranking-row {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .points-chip {
+    min-width: 74px;
+    text-align: center;
+  }
+
+  .score-chip {
+    color: #67e8f9;
+    border-color: rgba(34, 211, 238, 0.3);
+  }
+
+  .score-chip.upcoming {
+    color: #fde68a;
+    border-color: rgba(250, 204, 21, 0.3);
+  }
+
+  .match-date {
+    color: #facc15;
+    background: rgba(250, 204, 21, 0.12);
+    border: 1px solid rgba(250, 204, 21, 0.3);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .confederation-chip {
+    margin-left: auto;
+  }
+
+  .penca-board {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .results-board {
+    display: grid;
+    gap: 14px;
+    width: 100%;
+  }
+
+  .results-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 16px 18px;
+    background:
+      radial-gradient(circle at top left, rgba(34, 211, 238, 0.16), transparent 35%),
+      radial-gradient(circle at top right, rgba(16, 185, 129, 0.14), transparent 28%),
+      rgba(255, 255, 255, 0.04);
+  }
+
+  .results-kicker {
+    margin: 0 0 8px;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #67e8f9;
+  }
+
+  .results-hero h2 {
+    margin: 0;
+    font-size: 22px;
+  }
+
+  .results-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    max-width: 460px;
+  }
+
+  .legend-chip,
+  .summary-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.72);
+    color: #cbd5e1;
+  }
+
+  .legend-chip--correct,
+  .summary-chip--correct {
+    color: #86efac;
+    border-color: rgba(34, 197, 94, 0.3);
+    background: rgba(22, 101, 52, 0.25);
+  }
+
+  .legend-chip--wrong,
+  .summary-chip--wrong {
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(127, 29, 29, 0.25);
+  }
+
+  .legend-chip--pending,
+  .summary-chip--pending {
+    color: #e2e8f0;
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+
+  .legend-chip--missing,
+  .summary-chip--missing {
+    color: #fcd34d;
+    border-color: rgba(250, 204, 21, 0.28);
+    background: rgba(113, 63, 18, 0.24);
+  }
+
+  .results-card {
+    min-height: auto;
+    padding: 18px;
+  }
+
+  .results-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+
+  .results-card-header h3 {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  .results-card-meta {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .predictions-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .prediction-card {
+    padding: 14px;
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.5)),
+      rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .prediction-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .prediction-card-title {
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .prediction-card-meta {
+    color: var(--muted);
+    font-size: 12px;
+    word-break: break-all;
+  }
+
+  .prediction-summary {
+    display: none;
+  }
+
+  .prediction-section-label,
+  .prediction-subtitle {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #cbd5e1;
+  }
+
+  .prediction-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .prediction-grid--groups {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .prediction-grid--knockout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prediction-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 14px;
+    min-width: 0;
+    align-items: start;
+  }
+
+  .results-groups-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    padding: 0;
+  }
+
+  .results-knockout-grid-simple,
+  .results-knockout-grid,
+  .results-knockout-board {
+    display: grid;
+    gap: 12px;
+    align-items: start;
+    padding-bottom: 6px;
+  }
+
+  .results-knockout-grid-simple {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    padding: 0;
+  }
+
+  .results-knockout-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .results-knockout-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .prediction-panel--knockout {
+    grid-column: 1 / -1;
+    background:
+      radial-gradient(circle at top right, rgba(14, 116, 144, 0.16), transparent 34%),
+      rgba(2, 6, 23, 0.42);
+  }
+
+  .results-stage-card,
+  .results-stage-column {
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.66)),
+      rgba(2, 6, 23, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.08);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .results-stage-card--r32,
+  .results-stage-card--r16,
+  .results-stage-column--r32,
+  .results-stage-column--r16 {
+    min-height: 320px;
+  }
+
+  .results-stage-card--qf,
+  .results-stage-card--sf,
+  .results-stage-column--qf,
+  .results-stage-column--sf {
+    min-height: 220px;
+  }
+
+  .results-stage-card--final,
+  .results-stage-card--champion,
+  .results-stage-column--final,
+  .results-stage-column--champion {
+    min-height: 160px;
+  }
+
+  .results-stage-card::before,
+  .results-stage-column::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(34, 211, 238, 0.14), transparent 42%);
+    pointer-events: none;
+  }
+
+  .results-stage-card:hover,
+  .results-stage-column:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.5);
+    box-shadow: 0 10px 24px rgba(2, 132, 199, 0.18), inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+  }
+
+  .results-stage-title {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 10px;
+    border: 1px solid rgba(56, 189, 248, 0.34);
+    background: rgba(14, 116, 144, 0.18);
+    color: #7dd3fc;
+    letter-spacing: 0.02em;
+  }
+
+  .results-stage-list,
+  .results-stage-column-list {
+    gap: 8px;
+  }
+
+  .results-stage-list--r32,
+  .results-stage-list--r16,
+  .results-stage-list--qf,
+  .results-stage-list--sf,
+  .results-stage-list--final,
+  .results-stage-column-list--r32,
+  .results-stage-column-list--r16,
+  .results-stage-column-list--qf,
+  .results-stage-column-list--sf,
+  .results-stage-column-list--final {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .results-stage-list--champion,
+  .results-stage-column-list--champion {
+    grid-template-columns: 1fr;
+  }
+
+  .results-groups-grid .group-row[data-status='correct'] {
+    background: rgba(22, 101, 52, 0.48);
+    border-color: rgba(34, 197, 94, 0.82);
+  }
+
+  .results-groups-grid .group-row[data-status='wrong'] {
+    background: rgba(127, 29, 29, 0.48);
+    border-color: rgba(239, 68, 68, 0.84);
+  }
+
+  .results-groups-grid .group-row[data-status='correct'] .prediction-chip {
+    color: #dcfce7;
+    border-color: rgba(34, 197, 94, 0.58);
+    background: linear-gradient(135deg, rgba(22, 101, 52, 0.62), rgba(34, 197, 94, 0.2));
+  }
+
+  .results-groups-grid .group-row[data-status='wrong'] .prediction-chip {
+    color: #fee2e2;
+    border-color: rgba(239, 68, 68, 0.6);
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.62), rgba(239, 68, 68, 0.2));
+  }
+
+  .prediction-panel {
+    min-width: 0;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 16px;
+    padding: 12px;
+    background: rgba(2, 6, 23, 0.42);
+  }
+
+  .prediction-subcard {
+    padding: 12px;
+    border-radius: 16px;
+    background:
+      radial-gradient(circle at top left, rgba(34, 211, 238, 0.08), transparent 38%),
+      rgba(2, 6, 23, 0.58);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .prediction-subcard--group {
+    background: rgba(2, 6, 23, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 10px;
+  }
+
+  .prediction-subcard--knockout {
+    background: rgba(2, 6, 23, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    padding: 10px;
+  }
+
+  .prediction-slot-list {
+    display: grid;
+    gap: 6px;
+  }
+
+  .prediction-slot-list--dense {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prediction-slot {
+    min-width: 0;
+    border-radius: 12px;
+    padding: 3px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.72);
+  }
+
+  .prediction-slot[data-status='correct'] {
+    background: rgba(22, 101, 52, 0.44);
+    border-color: rgba(34, 197, 94, 0.75);
+  }
+
+  .prediction-slot[data-status='wrong'] {
+    background: rgba(127, 29, 29, 0.44);
+    border-color: rgba(239, 68, 68, 0.78);
+  }
+
+  .prediction-slot[data-status='pending'] {
+    background: rgba(15, 23, 42, 0.52);
+    border-color: rgba(148, 163, 184, 0.26);
+  }
+
+  .prediction-slot[data-status='missing'] {
+    background: rgba(113, 63, 18, 0.34);
+    border-color: rgba(250, 204, 21, 0.4);
+  }
+
+  .prediction-slot--knockout {
+    padding: 4px 6px;
+  }
+
+  .prediction-slot[data-status='correct'] .prediction-badge,
+  .prediction-badge[data-status='correct'] {
+    color: #dcfce7;
+    border-color: rgba(34, 197, 94, 0.5);
+    background: linear-gradient(135deg, rgba(22, 101, 52, 0.5), rgba(34, 197, 94, 0.18));
+  }
+
+  .prediction-slot[data-status='wrong'] .prediction-badge,
+  .prediction-badge[data-status='wrong'] {
+    color: #fee2e2;
+    border-color: rgba(239, 68, 68, 0.55);
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.5), rgba(239, 68, 68, 0.16));
+  }
+
+  .prediction-slot[data-status='pending'] .prediction-badge,
+  .prediction-badge[data-status='pending'] {
+    color: #e2e8f0;
+    border-color: rgba(148, 163, 184, 0.3);
+    background: rgba(15, 23, 42, 0.78);
+  }
+
+  .prediction-slot[data-status='missing'] .prediction-badge,
+  .prediction-badge[data-status='missing'] {
+    color: #fde68a;
+    border-color: rgba(250, 204, 21, 0.32);
+    background: linear-gradient(135deg, rgba(113, 63, 18, 0.42), rgba(250, 204, 21, 0.1));
+  }
+
+  .prediction-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.72);
+    color: #f8fafc;
+  }
+
+  .prediction-chip {
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    background: rgba(30, 41, 59, 0.86);
+    font-size: 12px;
+    padding: 6px 10px;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .prediction-chip--correct {
+    color: #dcfce7 !important;
+    border-color: rgba(34, 197, 94, 0.62) !important;
+    background: linear-gradient(135deg, rgba(22, 101, 52, 0.62), rgba(34, 197, 94, 0.22)) !important;
+  }
+
+  .prediction-chip--wrong {
+    color: #fee2e2 !important;
+    border-color: rgba(239, 68, 68, 0.64) !important;
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.62), rgba(239, 68, 68, 0.22)) !important;
+  }
+
+  .prediction-slot--correct {
+    background: rgba(22, 101, 52, 0.5) !important;
+    border-color: rgba(34, 197, 94, 0.82) !important;
+  }
+
+  .prediction-slot--wrong {
+    background: rgba(127, 29, 29, 0.5) !important;
+    border-color: rgba(239, 68, 68, 0.84) !important;
+  }
+
+  .prediction-slot[data-status='correct'] .prediction-badge {
+    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.28), 0 0 18px rgba(34, 197, 94, 0.16);
+  }
+
+  .prediction-slot[data-status='wrong'] .prediction-badge {
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.28), 0 0 18px rgba(239, 68, 68, 0.16);
+  }
+
+  .prediction-slot[data-status='correct'] .prediction-badge {
+    font-weight: 800;
+  }
+
+  .prediction-slot[data-status='wrong'] .prediction-badge {
+    font-weight: 800;
+  }
+
+  .results-hero-copy {
+    max-width: 560px;
+  }
+
+  .results-hero-copy h2 {
+    margin: 0;
+    line-height: 1.05;
+  }
+
+  .results-hero-copy .penca-hint {
+    margin-bottom: 0;
+  }
+
+  .prediction-card-title {
+    font-size: 17px;
+  }
+
+  .prediction-card-meta {
+    display: none;
+  }
+
+  .prediction-subtitle {
+    color: #e2e8f0;
+    letter-spacing: 0.02em;
+  }
+
+  .prediction-empty {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .penca-submit {
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .btn.prediction {
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    background: linear-gradient(135deg, rgba(8, 47, 73, 0.95), rgba(14, 116, 144, 0.9));
+    color: #ecfeff;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  }
+
+  .btn.prediction:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(8, 47, 73, 0.38);
+  }
+
+  .btn.prediction:disabled,
+  .btn.prediction.is-loading {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .submit-hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .penca-card {
+    min-height: 420px;
+  }
+
+  .penca-hint {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 14px;
+  }
+
+  .groups-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    overflow: hidden;
+    padding: 4px 2px 10px;
+    align-items: start;
+  }
+
+  .group-card {
+    background: rgba(2, 6, 23, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .group-title {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+
+  .group-list {
+    display: grid;
+    gap: 7px;
+  }
+
+  .group-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 10px;
+    padding: 6px;
+    background: rgba(15, 23, 42, 0.7);
+    transition: 0.2s;
+  }
+
+  .group-row.drop-target {
+    border-color: rgba(34, 211, 238, 0.5);
+    background: rgba(14, 116, 144, 0.2);
+  }
+
+  .results-groups-grid .group-row[data-status='correct'] {
+    background: rgba(22, 101, 52, 0.5) !important;
+    border-color: rgba(34, 197, 94, 0.82) !important;
+  }
+
+  .results-groups-grid .group-row[data-status='wrong'] {
+    background: rgba(127, 29, 29, 0.5) !important;
+    border-color: rgba(239, 68, 68, 0.84) !important;
+  }
+
+  .group-rank {
+    width: 18px;
+    text-align: center;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  .team-chip {
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(30, 41, 59, 0.8);
+    color: var(--text);
+    border-radius: 999px;
+    font-size: 12px;
+    padding: 6px 10px;
+    cursor: grab;
+    width: 100%;
+    text-align: left;
+  }
+
+  .team-chip:active {
+    cursor: grabbing;
+  }
+
+  .qualified-pool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .pool-empty {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .pool-dropzone {
+    border: 1px dashed rgba(148, 163, 184, 0.35);
+    border-radius: 10px;
+    padding: 8px 10px;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 14px;
+    transition: 0.2s;
+  }
+
+  .pool-dropzone.drop-target {
+    border-color: rgba(34, 211, 238, 0.65);
+    color: #67e8f9;
+    background: rgba(8, 47, 73, 0.3);
+  }
+
+  .knockout-grid {
+    --match-height: 40px;
+    --match-gap: 16px;
+    overflow: hidden;
+    padding: 8px 0 10px;
+  }
+
+  .bracket-canvas {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 18px;
+    width: 100%;
+  }
+
+  .bracket-side {
+    display: flex;
+    gap: 14px;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .bracket-side.left {
+    flex-direction: row;
+  }
+
+  .bracket-side.right {
+    flex-direction: row-reverse;
+  }
+
+  .bracket-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 30px;
+    flex: 0 0 clamp(140px, 16vw, 200px);
+    min-width: 0;
+  }
+
+  .bracket-col {
+    background: transparent;
+    border: none;
+    padding: 0;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .knockout-title {
+    margin: 0 0 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #cbd5e1;
+    min-height: 14px;
+    font-weight: 700;
+  }
+
+  .knockout-slots {
+    display: grid;
+    min-width: 0;
+  }
+
+  .bracket-col.stage-r16 .knockout-slots {
+    gap: var(--match-gap);
+  }
+
+  .bracket-col.stage-qf .knockout-slots {
+    gap: calc(var(--match-gap) * 3);
+  }
+
+  .bracket-col.stage-sf .knockout-slots {
+    gap: calc(var(--match-gap) * 7);
+  }
+
+  .bracket-col.stage-final .knockout-slots {
+    gap: calc(var(--match-gap) * 15);
+  }
+
+  .bracket-col.stage-champion .knockout-slots {
+    gap: 0;
+  }
+
+  .knockout-match {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .knockout-match.single {
+    gap: 0;
+  }
+
+  .knockout-slot {
+    position: relative;
+    height: var(--match-height);
+    border: 1px solid rgba(241, 245, 249, 0.85);
+    border-radius: 6px;
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.92);
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .knockout-slot::after {
+    content: '';
+    position: absolute;
+    right: -10px;
+    top: 50%;
+    width: 10px;
+    height: 1px;
+    background: rgba(241, 245, 249, 0.8);
+  }
+
+  .bracket-col.right .knockout-slot::after {
+    left: -10px;
+    right: auto;
+  }
+
+  .bracket-col.stage-champion .knockout-slot::after,
+  .bracket-col.center .knockout-slot::after {
+    display: none;
+  }
+
+  .knockout-slot.drop-target {
+    border-color: rgba(34, 211, 238, 0.8);
+    background: rgba(8, 47, 73, 0.55);
+  }
+
+  .slot-placeholder {
+    font-size: 11px;
+    color: #94a3b8;
+    padding: 0 6px;
+  }
+
+  .slot-team {
+    width: 100%;
+    text-align: left;
+  }
+
+  .r16-matchups {
+    display: grid;
+    gap: 16px;
+  }
+
+  .r16-matchup {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .r16-team-button {
+    border: 1px solid rgba(241, 245, 249, 0.85);
+    background: rgba(15, 23, 42, 0.92);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    cursor: grab;
+    transition: all 0.2s ease;
+    text-align: left;
+    height: var(--match-height);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .r16-team-button:hover {
+    border-color: rgba(124, 58, 237, 0.5);
+    background: rgba(30, 41, 59, 0.95);
+  }
+
+  @media (max-width: 768px) {
+    #grid {
+      grid-template-columns: 1fr;
+    }
+
+    .penca-board {
+      grid-template-columns: 1fr;
+    }
+
+    .prediction-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .prediction-grid--groups,
+    .prediction-grid--knockout {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .results-groups-grid,
+    .results-knockout-grid-simple,
+    .results-knockout-grid,
+    .results-knockout-board {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .results-stage-list--r32,
+    .results-stage-list--r16,
+    .results-stage-column-list--r32,
+    .results-stage-column-list--r16 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .bracket-canvas {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 20px;
+    }
+
+    .bracket-side,
+    .bracket-side.right,
+    .bracket-side.left {
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .bracket-center {
+      flex: 1 1 auto;
+      align-items: stretch;
+      gap: 16px;
+    }
+
+    .bracket-col.stage-qf .knockout-slots,
+    .bracket-col.stage-sf .knockout-slots,
+    .bracket-col.stage-final .knockout-slots,
+    .bracket-col.stage-champion .knockout-slots {
+      gap: 12px;
+    }
+
+    .knockout-slot::after {
+      display: none;
+    }
+
+    .groups-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .title {
+      font-size: 34px;
+    }
+
+    .emoji {
+      font-size: 30px;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .groups-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .results-knockout-grid-simple,
+    .results-knockout-grid,
+    .results-knockout-board {
+      grid-template-columns: 1fr;
+    }
+
+    .results-stage-list--r32,
+    .results-stage-list--r16,
+    .results-stage-list--qf,
+    .results-stage-list--sf,
+    .results-stage-list--final,
+    .results-stage-column-list--r32,
+    .results-stage-column-list--r16,
+    .results-stage-column-list--qf,
+    .results-stage-column-list--sf,
+    .results-stage-column-list--final {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

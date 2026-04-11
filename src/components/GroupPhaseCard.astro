@@ -1,0 +1,648 @@
+<div class="card penca-card">
+  <h2>🔢 Orden Fase de Grupos</h2>
+  <p class="penca-hint">Arrastrá y soltá dentro de cada grupo para definir el orden final.</p>
+  <div class="groups-grid" data-groups-board></div>
+  <div class="thirds-selector-container" data-thirds-selector hidden>
+    <h3>🥉 Seleccionar 8 Mejores Terceros</h3>
+    <p class="thirds-hint">Elige 8 terceros para que avancen a la siguiente ronda</p>
+    <div class="thirds-list" data-thirds-list></div>
+  </div>
+</div>
+
+<script is:inline>
+  const GROUPS_SETUP = [
+    { name: 'Grupo A', teams: ['MEX', 'RSA', 'KOR', 'CZE'] },
+    { name: 'Grupo B', teams: ['CAN', 'BIH', 'QAT', 'SUI'] },
+    { name: 'Grupo C', teams: ['BRA', 'MAR', 'HTI', 'SCO'] },
+    { name: 'Grupo D', teams: ['USA', 'PAR', 'AUS', 'TUR'] },
+    { name: 'Grupo E', teams: ['GER', 'CUW', 'CIV', 'ECU'] },
+    { name: 'Grupo F', teams: ['NED', 'JPN', 'SWE', 'TUN'] },
+    { name: 'Grupo G', teams: ['BEL', 'EGY', 'IRN', 'NZL'] },
+    { name: 'Grupo H', teams: ['ESP', 'CPV', 'KSA', 'URU'] },
+    { name: 'Grupo I', teams: ['FRA', 'SEN', 'IRQ', 'NOR'] },
+    { name: 'Grupo J', teams: ['ARG', 'ALG', 'AUT', 'JOR'] },
+    { name: 'Grupo K', teams: ['POR', 'COD', 'UZB', 'COL'] },
+    { name: 'Grupo L', teams: ['ENG', 'CRO', 'GHA', 'PAN'] },
+  ];
+
+  const groupsBoard = document.querySelector('[data-groups-board]');
+  const thirdsSelector = document.querySelector('[data-thirds-selector]');
+  const thirdsList = document.querySelector('[data-thirds-list]');
+
+  let countriesByCode = new Map();
+  let groupOrder = null;
+  let selectedThirds = new Set();
+
+  const createNode = (tag, className, text) => {
+    const node = document.createElement(tag);
+
+    if (className) {
+      node.className = className;
+    }
+
+    if (typeof text === 'string') {
+      node.textContent = text;
+    }
+
+    return node;
+  };
+
+  const createTeamChip = (code, dragPayload) => {
+    const country = countriesByCode.get(code);
+    const chip = createNode('button', 'team-chip', country ? `    ${country.flag} ${country.name}` : code);
+
+    chip.type = 'button';
+    chip.draggable = true;
+    chip.addEventListener('dragstart', (event) => {
+      event.dataTransfer.setData('text/plain', JSON.stringify(dragPayload));
+    });
+
+    return chip;
+  };
+
+  const createDefaultGroupOrder = (countries) => {
+    const fallbackCodes = countries.map((country) => country.code);
+    const assignedCodes = new Set();
+    const nextGroupOrder = {};
+    let fallbackIndex = 0;
+
+    GROUPS_SETUP.forEach((group) => {
+      const validCodes = [];
+
+      group.teams.forEach((code) => {
+        if (countriesByCode.has(code) && !assignedCodes.has(code)) {
+          validCodes.push(code);
+          assignedCodes.add(code);
+        } else if (!countriesByCode.has(code)) {
+          // Debug: log if a team is missing
+          console.warn(`Equipment ${code} not found in countriesByCode for ${group.name}`);
+        }
+      });
+
+      // Fill with fallback if needed
+      while (validCodes.length < 4 && fallbackIndex < fallbackCodes.length) {
+        const code = fallbackCodes[fallbackIndex++];
+
+        if (!assignedCodes.has(code)) {
+          validCodes.push(code);
+          assignedCodes.add(code);
+        }
+      }
+
+      // Log if group doesn't have 4 teams
+      if (validCodes.length < 4) {
+        console.warn(`Group ${group.name} only has ${validCodes.length} teams`);
+      }
+
+      nextGroupOrder[group.name] = validCodes;
+    });
+
+    return nextGroupOrder;
+  };
+
+  const normalizeLoadedGroupOrder = (loadedOrder, defaultGroupOrder, countries) => {
+    if (!loadedOrder || typeof loadedOrder !== 'object') {
+      return defaultGroupOrder;
+    }
+
+    const fallbackCodes = countries.map((country) => country.code);
+    const assignedCodes = new Set();
+    const normalized = {};
+
+    GROUPS_SETUP.forEach((group) => {
+      const configuredCodes = group.teams.filter((code) => countriesByCode.has(code));
+      const incomingCodes = Array.isArray(loadedOrder[group.name]) ? loadedOrder[group.name] : [];
+      const validIncoming = [];
+
+      incomingCodes.forEach((code) => {
+        if (typeof code !== 'string') {
+          return;
+        }
+
+        if (!configuredCodes.includes(code)) {
+          return;
+        }
+
+        if (assignedCodes.has(code) || validIncoming.includes(code)) {
+          return;
+        }
+
+        validIncoming.push(code);
+        assignedCodes.add(code);
+      });
+
+      configuredCodes.forEach((code) => {
+        if (validIncoming.length >= 4) {
+          return;
+        }
+
+        if (assignedCodes.has(code) || validIncoming.includes(code)) {
+          return;
+        }
+
+        validIncoming.push(code);
+        assignedCodes.add(code);
+      });
+
+      if (validIncoming.length < 4) {
+        fallbackCodes.forEach((code) => {
+          if (validIncoming.length >= 4) {
+            return;
+          }
+
+          if (assignedCodes.has(code) || validIncoming.includes(code)) {
+            return;
+          }
+
+          validIncoming.push(code);
+          assignedCodes.add(code);
+        });
+      }
+
+      normalized[group.name] = validIncoming;
+    });
+
+    return normalized;
+  };
+
+  const loadGroupPrediction = (countries, initialGroupOrder) => {
+    const defaultGroupOrder = createDefaultGroupOrder(countries);
+
+    if (!initialGroupOrder || typeof initialGroupOrder !== 'object') {
+      return defaultGroupOrder;
+    }
+
+    return normalizeLoadedGroupOrder(initialGroupOrder, defaultGroupOrder, countries);
+  };
+
+  const getQualifiedCodes = () => {
+    if (!groupOrder) {
+      return [];
+    }
+
+    const orderedGroups = GROUPS_SETUP.map((group) => groupOrder[group.name] ?? []);
+    const topTwo = orderedGroups.flatMap((codes) => codes.slice(0, 2));
+    
+    // Use manually selected thirds, or fallback to first 8 by group order
+    const bestThirds = selectedThirds.size > 0 ? Array.from(selectedThirds) : [];
+
+    return [...topTwo, ...bestThirds];
+  };
+
+  const emitGroupsChanged = () => {
+    window.dispatchEvent(
+      new CustomEvent('penca:groups-changed', {
+        detail: {
+          groupOrder,
+          qualifiedCodes: getQualifiedCodes(),
+          selectedThirds: Array.from(selectedThirds),
+        },
+      }),
+    );
+  };
+
+  const renderGroupsEditor = () => {
+    if (!groupsBoard || !groupOrder) {
+      return;
+    }
+
+    groupsBoard.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    GROUPS_SETUP.forEach((group) => {
+      const card = createNode('article', 'group-card');
+      const title = createNode('h3', 'group-title', group.name);
+      const list = createNode('ul', 'group-list');
+      const orderedCodes = groupOrder[group.name] ?? [];
+
+      orderedCodes.forEach((code, index) => {
+        const row = createNode('li', 'group-row');
+        row.dataset.group = group.name;
+        row.dataset.index = String(index);
+
+        const chip = createTeamChip(code, {
+          type: 'group',
+          group: group.name,
+          index,
+          code,
+        });
+
+        chip.classList.add('group-chip');
+        chip.dataset.rank = String(index + 1);
+        if (index < 2) {
+          chip.classList.add('group-chip-top-two');
+        }
+        if (index === 2 && selectedThirds.has(code)) {
+          chip.classList.add('group-chip-third-selected');
+        }
+
+        row.appendChild(chip);
+
+        row.addEventListener('dragover', (event) => {
+          event.preventDefault();
+          row.classList.add('drop-target');
+        });
+
+        row.addEventListener('dragleave', () => {
+          row.classList.remove('drop-target');
+        });
+
+        row.addEventListener('drop', (event) => {
+          event.preventDefault();
+          row.classList.remove('drop-target');
+
+          try {
+            const payload = JSON.parse(event.dataTransfer.getData('text/plain'));
+
+            if (payload.type !== 'group' || payload.group !== group.name) {
+              return;
+            }
+
+            const fromIndex = Number(payload.index);
+            const toIndex = Number(row.dataset.index);
+
+            if (Number.isNaN(fromIndex) || Number.isNaN(toIndex) || fromIndex === toIndex) {
+              return;
+            }
+
+            const listCodes = [...groupOrder[group.name]];
+            const [movedCode] = listCodes.splice(fromIndex, 1);
+            listCodes.splice(toIndex, 0, movedCode);
+            groupOrder[group.name] = listCodes;
+
+            renderGroupsEditor();
+            renderThirdsSelector();
+            emitGroupsChanged();
+          } catch {
+            return;
+          }
+        });
+
+        list.appendChild(row);
+      });
+
+      card.appendChild(title);
+      card.appendChild(list);
+      fragment.appendChild(card);
+    });
+
+    groupsBoard.appendChild(fragment);
+  };
+
+  const getThirdPlaces = () => {
+    if (!groupOrder) {
+      return [];
+    }
+
+    const orderedGroups = GROUPS_SETUP.map((group, index) => ({
+      name: group.name,
+      codes: groupOrder[group.name] ?? [],
+      index,
+    }));
+
+    return orderedGroups
+      .map((group) => {
+        const thirdCode = group.codes[2];
+        if (typeof thirdCode !== 'string') return null;
+        
+        const country = countriesByCode.get(thirdCode);
+        return {
+          code: thirdCode,
+          group: group.name,
+          country,
+        };
+      })
+      .filter((third) => third !== null);
+  };
+
+  const deriveSelectedThirds = (initialPrediction) => {
+    if (Array.isArray(initialPrediction?.selectedThirds)) {
+      return new Set(initialPrediction.selectedThirds.filter((code) => typeof code === 'string').slice(0, 8));
+    }
+
+    const seededR32 = initialPrediction?.knockout?.r32;
+
+    if (!Array.isArray(seededR32) || seededR32.length < 16) {
+      return new Set();
+    }
+
+    const seededThirds = [];
+    for (let index = 1; index < 16; index += 2) {
+      const code = seededR32[index];
+
+      if (typeof code === 'string' && code.length > 0) {
+        seededThirds.push(code);
+      }
+    }
+
+    const currentThirds = new Set(getThirdPlaces().map((entry) => entry.code));
+    return new Set(seededThirds.filter((code) => currentThirds.has(code)).slice(0, 8));
+  };
+
+  const renderThirdsSelector = () => {
+    if (!thirdsList || !thirdsSelector) {
+      return;
+    }
+
+    const thirds = getThirdPlaces();
+
+    if (thirds.length === 0) {
+      thirdsSelector.hidden = true;
+      return;
+    }
+
+    thirdsSelector.hidden = false;
+    thirdsList.innerHTML = '';
+
+    const fragment = document.createDocumentFragment();
+
+    thirds.forEach((third) => {
+      const label = createNode('label', 'thirds-option');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = third.code;
+      checkbox.checked = selectedThirds.has(third.code);
+      if (checkbox.checked) {
+        label.classList.add('is-selected');
+      }
+      
+      // Deshabilitar si ya hay 8 seleccionados y este no está seleccionado
+      checkbox.disabled = selectedThirds.size >= 8 && !selectedThirds.has(third.code);
+
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          if (selectedThirds.size < 8) {
+            selectedThirds.add(third.code);
+            renderGroupsEditor();
+            renderThirdsSelector(); // Re-renderizar para actualizar disabled states
+            emitGroupsChanged();
+          } else {
+            // Revertir el cambio si ya hay 8
+            checkbox.checked = false;
+          }
+        } else {
+          selectedThirds.delete(third.code);
+          renderGroupsEditor();
+          renderThirdsSelector(); // Re-renderizar para actualizar disabled states
+          emitGroupsChanged();
+        }
+      });
+
+      const countryName = third.country ? `${third.country.flag} ${third.country.name}` : third.code;
+      const text = createNode('span', 'thirds-text', `${countryName} (${third.group})`);
+
+      label.appendChild(checkbox);
+      label.appendChild(text);
+      fragment.appendChild(label);
+    });
+
+    thirdsList.appendChild(fragment);
+  };
+
+  window.addEventListener('penca:init', (event) => {
+    const countries = event.detail?.countries ?? [];
+    const incomingMap = event.detail?.countriesByCode;
+    const initialPrediction = event.detail?.initialPrediction;
+
+    if (incomingMap instanceof Map) {
+      countriesByCode = incomingMap;
+    } else {
+      countriesByCode = new Map(countries.map((country) => [country.code, country]));
+    }
+
+    groupOrder = loadGroupPrediction(countries, initialPrediction?.groupOrder);
+    selectedThirds = deriveSelectedThirds(initialPrediction);
+    renderGroupsEditor();
+    renderThirdsSelector();
+    emitGroupsChanged();
+  });
+</script>
+
+<style is:global>
+  .penca-card {
+    min-height: 420px;
+  }
+
+  .penca-hint {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 14px;
+  }
+
+  .groups-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+    width: 100%;
+    padding: 4px 0 12px;
+  }
+
+  .group-card {
+    background: linear-gradient(165deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.65));
+    border: 1px solid rgba(100, 116, 139, 0.38);
+    border-radius: 16px;
+    padding: 14px;
+    min-width: 0;
+    box-shadow: 0 10px 24px rgba(2, 6, 23, 0.25);
+  }
+
+  .group-title {
+    margin: 0 0 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #67e8f9;
+  }
+
+  .group-list {
+    display: grid;
+    gap: 9px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .group-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .group-row:hover {
+    transform: translateY(-1px);
+  }
+
+  .group-row.drop-target .group-chip {
+    border-color: rgba(34, 211, 238, 0.72);
+    background: linear-gradient(160deg, rgba(8, 47, 73, 0.8), rgba(15, 23, 42, 0.95));
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2);
+  }
+
+  .group-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: linear-gradient(160deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.92));
+    color: var(--text);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 12px 7px 8px;
+    cursor: grab;
+    width: 100%;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 6px 14px rgba(2, 6, 23, 0.2);
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .group-chip::before {
+    content: attr(data-rank);
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(8, 47, 73, 0.9);
+    border: 1px solid rgba(103, 232, 249, 0.4);
+    color: #67e8f9;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .group-chip:hover {
+    border-color: rgba(103, 232, 249, 0.45);
+    box-shadow: 0 8px 18px rgba(2, 6, 23, 0.3);
+  }
+
+  .group-chip:active {
+    cursor: grabbing;
+  }
+
+  .group-chip.group-chip-top-two {
+    border-color: rgba(34, 197, 94, 0.95) !important;
+    background: linear-gradient(160deg, rgba(4, 120, 87, 1), rgba(6, 78, 59, 0.98)) !important;
+    color: #ecfdf5 !important;
+    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4), 0 8px 18px rgba(2, 6, 23, 0.3) !important;
+  }
+
+  .group-chip.group-chip-third-selected {
+    border-color: rgba(250, 204, 21, 0.98) !important;
+    background: linear-gradient(160deg, rgba(180, 83, 9, 1), rgba(146, 64, 14, 0.98)) !important;
+    color: #fffbeb !important;
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.45), 0 8px 18px rgba(2, 6, 23, 0.3) !important;
+  }
+
+  .group-chip.group-chip-top-two::before {
+    background: rgba(16, 185, 129, 1);
+    border-color: rgba(209, 250, 229, 0.85);
+    color: #ffffff;
+  }
+
+  .group-chip.group-chip-third-selected::before {
+    background: rgba(245, 158, 11, 1);
+    border-color: rgba(255, 251, 235, 0.9);
+    color: #111827;
+  }
+
+  @media (max-width: 768px) {
+    .groups-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 520px) {
+    .groups-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .thirds-selector-container {
+    margin: 24px 0 0;
+    padding: 16px;
+    background: linear-gradient(165deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.75));
+    border: 1px solid rgba(100, 116, 139, 0.38);
+    border-radius: 16px;
+  }
+
+  .thirds-selector-container h3 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #fbbf24;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .thirds-hint {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 0 0 12px;
+  }
+
+  .thirds-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  .thirds-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+
+  .thirds-option:hover {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(148, 163, 184, 0.4);
+  }
+
+  .thirds-option.is-selected {
+    border-color: rgba(250, 204, 21, 0.95) !important;
+    background: rgba(180, 83, 9, 0.35) !important;
+  }
+
+  .thirds-option.is-selected .thirds-text {
+    color: #fffbeb;
+    font-weight: 700;
+  }
+
+  .thirds-option input[type="checkbox"] {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+  }
+
+  .thirds-option input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .thirds-option:has(input[type="checkbox"]:disabled) {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .thirds-text {
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+</style>

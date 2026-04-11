@@ -1,0 +1,1137 @@
+<div class="card penca-card">
+  <h2>🥇 Eliminatoria</h2>
+  <p class="penca-hint">Las llaves de 16avos se arman automáticamente según el orden de grupos y mejores terceros.</p>
+
+  <div class="qualified-pool" data-qualified-pool></div>
+  <div class="pool-dropzone" data-pool-dropzone>Soltá acá para quitar de eliminatoria o clickea encima de el país</div>
+  <div class="knockout-wrapper" data-knockout-wrapper>
+    <svg class="bracket-lines" data-bracket-lines></svg>
+    <div class="knockout-grid" data-knockout-board></div>
+  </div>
+</div>
+
+<script is:inline>
+  (() => {
+  const KNOCKOUT_STAGES = [
+    { key: 'r32', label: '16avos', slots: 32 },
+    { key: 'r16', label: 'Octavos', slots: 16 },
+    { key: 'qf', label: 'Cuartos', slots: 8 },
+    { key: 'sf', label: 'Semifinal', slots: 4 },
+    { key: 'final', label: 'Final', slots: 2 },
+    { key: 'champion', label: 'Campeón', slots: 1 },
+  ];
+
+  const qualifiedPool = document.querySelector('[data-qualified-pool]');
+  const poolDropzone = document.querySelector('[data-pool-dropzone]');
+  const knockoutWrapper = document.querySelector('[data-knockout-wrapper]');
+  const bracketLines = document.querySelector('[data-bracket-lines]');
+  const knockoutBoard = document.querySelector('[data-knockout-board]');
+
+  let countriesByCode = new Map();
+  let knockoutState = null;
+  let qualifiedCodes = [];
+  let selectedThirds = new Set();
+
+  const GROUP_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+
+  const createNode = (tag, className, text) => {
+    const node = document.createElement(tag);
+
+    if (className) {
+      node.className = className;
+    }
+
+    if (typeof text === 'string') {
+      node.textContent = text;
+    }
+
+    return node;
+  };
+
+  const createTeamChip = (code, dragPayload) => {
+    const country = countriesByCode.get(code);
+    const chip = createNode('button', 'team-chip', country ? `${country.flag} ${country.name}` : code);
+
+    chip.type = 'button';
+    chip.draggable = true;
+    chip.addEventListener('dragstart', (event) => {
+      event.dataTransfer.setData('text/plain', JSON.stringify(dragPayload));
+    });
+
+    return chip;
+  };
+
+  const createEmptyKnockout = () => ({
+    r32: Array(32).fill(null),
+    r16: Array(16).fill(null),
+    qf: Array(8).fill(null),
+    sf: Array(4).fill(null),
+    final: Array(2).fill(null),
+    champion: Array(1).fill(null),
+  });
+
+  const normalizeKnockoutShape = (source) => {
+    const fallback = createEmptyKnockout();
+
+    return {
+      r32: Array.isArray(source?.r32) ? source.r32.slice(0, 32) : fallback.r32,
+      r16: Array.isArray(source?.r16) ? source.r16.slice(0, 16) : fallback.r16,
+      qf: Array.isArray(source?.qf) ? source.qf.slice(0, 8) : fallback.qf,
+      sf: Array.isArray(source?.sf) ? source.sf.slice(0, 4) : fallback.sf,
+      final: Array.isArray(source?.final) ? source.final.slice(0, 2) : fallback.final,
+      champion: Array.isArray(source?.champion) ? source.champion.slice(0, 1) : fallback.champion,
+    };
+  };
+
+  const loadKnockoutPrediction = (initialPrediction) => {
+    if (!initialPrediction || typeof initialPrediction !== 'object') {
+      return createEmptyKnockout();
+    }
+
+    return normalizeKnockoutShape(initialPrediction.knockout);
+  };
+
+  const emitKnockoutChanged = () => {
+    window.dispatchEvent(
+      new CustomEvent('penca:knockout-changed', {
+        detail: {
+          knockout: knockoutState,
+        },
+      }),
+    );
+  };
+
+  const sanitizeKnockout = () => {
+    if (!knockoutState) {
+      return;
+    }
+
+    knockoutState.r32 = [...(knockoutState.r32 ?? [])].slice(0, 32);
+    knockoutState.r16 = [...(knockoutState.r16 ?? [])].slice(0, 16);
+    knockoutState.qf = [...(knockoutState.qf ?? [])].slice(0, 8);
+    knockoutState.sf = [...(knockoutState.sf ?? [])].slice(0, 4);
+    knockoutState.final = [...(knockoutState.final ?? [])].slice(0, 2);
+    knockoutState.champion = [knockoutState.champion?.[0] ?? null];
+
+    while (knockoutState.r32.length < 32) knockoutState.r32.push(null);
+    while (knockoutState.r16.length < 16) knockoutState.r16.push(null);
+    while (knockoutState.qf.length < 8) knockoutState.qf.push(null);
+    while (knockoutState.sf.length < 4) knockoutState.sf.push(null);
+    while (knockoutState.final.length < 2) knockoutState.final.push(null);
+
+    const allowed = new Set(qualifiedCodes ?? []);
+
+    KNOCKOUT_STAGES.forEach((stage) => {
+      knockoutState[stage.key] = knockoutState[stage.key].map((code) => {
+        if (!code) return null;
+        return allowed.has(code) ? code : null;
+      });
+    });
+  };
+
+  const getNextStageKey = (stageKey) => {
+    const stageIndex = KNOCKOUT_STAGES.findIndex((stage) => stage.key === stageKey);
+
+    if (stageIndex < 0 || stageIndex >= KNOCKOUT_STAGES.length - 1) {
+      return null;
+    }
+
+    return KNOCKOUT_STAGES[stageIndex + 1].key;
+  };
+
+  const clearCodeFromStage = (stageKey, code, excludedIndex = -1) => {
+    if (!knockoutState || !code) {
+      return;
+    }
+
+    knockoutState[stageKey] = knockoutState[stageKey].map((slotCode, index) => {
+      if (index === excludedIndex) {
+        return slotCode;
+      }
+
+      return slotCode === code ? null : slotCode;
+    });
+  };
+
+  const removeCodeFromStageForward = (fromStageKey, code) => {
+    if (!knockoutState || !code || !fromStageKey) {
+      return;
+    }
+
+    const fromStageIndex = KNOCKOUT_STAGES.findIndex((stage) => stage.key === fromStageKey);
+
+    if (fromStageIndex < 0) {
+      return;
+    }
+
+    KNOCKOUT_STAGES.slice(fromStageIndex).forEach((stage) => {
+      if (stage.key === 'r32') {
+        return;
+      }
+
+      knockoutState[stage.key] = knockoutState[stage.key].map((slotCode) => {
+        return slotCode === code ? null : slotCode;
+      });
+    });
+  };
+
+  const isCodeInKnockout = (code) => {
+    if (!code || !knockoutState) {
+      return false;
+    }
+
+    return KNOCKOUT_STAGES.some((stage) => {
+      return Array.isArray(knockoutState[stage.key]) && knockoutState[stage.key].includes(code);
+    });
+  };
+
+  const getStageMatchup = (matchupIndex) => {
+    return [matchupIndex * 2, matchupIndex * 2 + 1];
+  };
+
+  const isValidAdvancement = (code, fromStageKey, toStageKey, toSlotIndex) => {
+    if (!knockoutState) {
+      return false;
+    }
+
+    // 16avos is auto-seeded from group standings; pool cannot place directly.
+    if (!fromStageKey) {
+      return false;
+    }
+
+    // Reordering inside the same stage should always be valid.
+    if (fromStageKey === toStageKey) {
+      return true;
+    }
+
+    const fromStageIndex = KNOCKOUT_STAGES.findIndex((stage) => stage.key === fromStageKey);
+    const toStageIndex = KNOCKOUT_STAGES.findIndex((stage) => stage.key === toStageKey);
+
+    // Only allow moving one stage forward (e.g. r16->qf, qf->sf, sf->final, final->champion).
+    if (fromStageIndex < 0 || toStageIndex < 0 || toStageIndex - fromStageIndex !== 1) {
+      return false;
+    }
+
+    const prevStageKey = fromStageKey;
+    const prevStageSlots = knockoutState[prevStageKey];
+
+    if (!Array.isArray(prevStageSlots)) {
+      return false;
+    }
+
+    const sourceStartIndex = toSlotIndex * 2;
+    const prevSlots = [sourceStartIndex, sourceStartIndex + 1];
+    return prevSlots.some((slotIdx) => prevStageSlots[slotIdx] === code);
+  };
+
+  const renderQualifiedPool = () => {
+    if (!qualifiedPool) {
+      return;
+    }
+
+    qualifiedPool.innerHTML = '';
+
+    if (!qualifiedCodes.length) {
+      qualifiedPool.appendChild(createNode('p', 'pool-empty', 'Todavía no hay clasificados.'));
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    qualifiedCodes.forEach((code) => {
+      const chip = createTeamChip(code, {
+        type: 'pool',
+        code,
+      });
+      const isUsed = isCodeInKnockout(code);
+
+      chip.classList.toggle('is-used', isUsed);
+      chip.title = isUsed
+        ? 'Este país ya está ubicado en 16avos.'
+        : 'Clasificado disponible.';
+
+      fragment.appendChild(chip);
+    });
+
+    qualifiedPool.appendChild(fragment);
+  };
+
+  const renderKnockoutEditor = () => {
+    if (!knockoutBoard || !knockoutState) {
+      return;
+    }
+
+    const placeCodeInKnockout = (stageKey, slotIndex, code, payload = null) => {
+      if (!knockoutState) {
+        return;
+      }
+
+      if (!isValidAdvancement(code, payload?.stage, stageKey, slotIndex)) {
+        return;
+      }
+
+      if (payload?.type === 'slot' && payload.stage === stageKey) {
+        const fromIndex = Number(payload.slotIndex);
+
+        if (!Number.isNaN(fromIndex) && fromIndex === slotIndex) {
+          return;
+        }
+
+        if (!Number.isNaN(fromIndex)) {
+          knockoutState[stageKey][fromIndex] = null;
+        }
+      }
+
+      clearCodeFromStage(stageKey, code, slotIndex);
+      knockoutState[stageKey][slotIndex] = code;
+      emitKnockoutChanged();
+      renderQualifiedPool();
+      renderKnockoutEditor();
+
+      setTimeout(() => {
+        const movedTeam = knockoutBoard?.querySelector(`.slot-team[data-team-code="${code}"]`);
+
+        if (!movedTeam) {
+          return;
+        }
+
+        movedTeam.classList.add('moved');
+        setTimeout(() => movedTeam.classList.remove('moved'), 300);
+      }, 0);
+    };
+
+    knockoutBoard.innerHTML = '';
+
+    const createKnockoutSlot = (stageKey, index) => {
+      const code = knockoutState[stageKey][index];
+      const slot = createNode('div', 'knockout-slot');
+      slot.dataset.stage = stageKey;
+      slot.dataset.slotIndex = String(index);
+
+      if (code) {
+        const team = createTeamChip(code, {
+          type: 'slot',
+          stage: stageKey,
+          slotIndex: index,
+          code,
+        });
+        team.classList.add('slot-team');
+        team.dataset.teamCode = code;
+        if (stageKey === 'r32') {
+          team.draggable = true;
+          team.classList.add('seeded-team');
+        }
+        slot.appendChild(team);
+      } else {
+        slot.appendChild(createNode('span', 'slot-placeholder', 'Soltá país'));
+      }
+
+      if (stageKey !== 'r32') {
+        slot.addEventListener('click', (event) => {
+          const clickedTeam = event.target.closest('.slot-team');
+
+          if (clickedTeam && code) {
+            knockoutState[stageKey][index] = null;
+            emitKnockoutChanged();
+            renderQualifiedPool();
+            renderKnockoutEditor();
+          }
+        });
+
+        slot.addEventListener('dragover', (event) => {
+          event.preventDefault();
+          slot.classList.add('drop-target');
+        });
+
+        slot.addEventListener('dragleave', () => {
+          slot.classList.remove('drop-target');
+        });
+
+        slot.addEventListener('drop', (event) => {
+          event.preventDefault();
+          slot.classList.remove('drop-target');
+
+          try {
+            const payload = JSON.parse(event.dataTransfer.getData('text/plain'));
+
+            if (!payload?.code) {
+              return;
+            }
+
+            placeCodeInKnockout(stageKey, index, payload.code, payload);
+          } catch {
+            return;
+          }
+        });
+      }
+
+      return slot;
+    };
+
+    const createRoundColumn = (label, className, stageKey, slotIndexes, sideClass = '') => {
+      const column = createNode('section', `bracket-col ${className} ${sideClass}`.trim());
+      const slots = createNode('div', 'knockout-slots');
+
+      if (label) {
+        column.appendChild(createNode('h3', 'knockout-title', label));
+      }
+
+      for (let i = 0; i < slotIndexes.length; i += 2) {
+        const match = createNode('div', 'knockout-match');
+
+        match.appendChild(createKnockoutSlot(stageKey, slotIndexes[i]));
+        match.appendChild(createKnockoutSlot(stageKey, slotIndexes[i + 1]));
+        slots.appendChild(match);
+      }
+
+      column.appendChild(slots);
+      return column;
+    };
+
+    const createSingleSlotColumn = (label, className, stageKey, sideClass = '') => {
+      const column = createNode('section', `bracket-col ${className} ${sideClass}`.trim());
+      const slots = createNode('div', 'knockout-slots');
+
+      if (label) {
+        column.appendChild(createNode('h3', 'knockout-title', label));
+      }
+
+      const match = createNode('div', 'knockout-match single');
+      match.appendChild(createKnockoutSlot(stageKey, 0));
+      slots.appendChild(match);
+
+      column.appendChild(slots);
+      return column;
+    };
+
+    const createR32MatchupsSide = (matchupStart, matchupEnd, sideClass, showTitle = true) => {
+      const column = createNode('section', `bracket-col stage-r32 ${sideClass}`.trim());
+
+      if (showTitle) {
+        column.appendChild(createNode('h3', 'knockout-title', '16avos'));
+      }
+
+      const slots = createNode('div', 'knockout-slots r16-matchups');
+
+      for (let matchupIdx = matchupStart; matchupIdx <= matchupEnd; matchupIdx++) {
+        const [idx1, idx2] = getStageMatchup(matchupIdx);
+        const matchup = createNode('div', 'r16-matchup');
+
+        matchup.appendChild(createKnockoutSlot('r32', idx1));
+        matchup.appendChild(createKnockoutSlot('r32', idx2));
+        slots.appendChild(matchup);
+      }
+
+      column.appendChild(slots);
+      return column;
+    };
+
+    const createR32MatchupsLeft = () => createR32MatchupsSide(0, 7, 'left', true);
+    const createR32MatchupsRight = () => createR32MatchupsSide(8, 15, 'right', true);
+
+    const bracketCanvas = createNode('div', 'bracket-canvas');
+
+    const leftSide = createNode('div', 'bracket-side left');
+    leftSide.appendChild(createR32MatchupsLeft());
+    leftSide.appendChild(createRoundColumn('Octavos', 'stage-r16', 'r16', [0, 1, 2, 3, 4, 5, 6, 7], 'left'));
+    leftSide.appendChild(createRoundColumn('Cuartos', 'stage-qf', 'qf', [0, 1, 2, 3], 'left'));
+    leftSide.appendChild(createRoundColumn('Semifinal', 'stage-sf', 'sf', [0, 1], 'left'));
+
+    const center = createNode('div', 'bracket-center');
+    center.appendChild(createRoundColumn('Final', 'stage-final', 'final', [0, 1], 'center'));
+    center.appendChild(createSingleSlotColumn('Campeón', 'stage-champion', 'champion', 'center'));
+
+    const rightSide = createNode('div', 'bracket-side right');
+    rightSide.appendChild(createR32MatchupsRight());
+    rightSide.appendChild(createRoundColumn('Octavos', 'stage-r16', 'r16', [8, 9, 10, 11, 12, 13, 14, 15], 'right'));
+    rightSide.appendChild(createRoundColumn('Cuartos', 'stage-qf', 'qf', [4, 5, 6, 7], 'right'));
+    rightSide.appendChild(createRoundColumn('Semifinal', 'stage-sf', 'sf', [2, 3], 'right'));
+
+    bracketCanvas.appendChild(leftSide);
+    bracketCanvas.appendChild(center);
+    bracketCanvas.appendChild(rightSide);
+
+    knockoutBoard.appendChild(bracketCanvas);
+    scheduleDrawLines();
+  };
+
+  const getSlotElement = (stageKey, slotIndex) => {
+    return knockoutBoard?.querySelector(`.knockout-slot[data-stage="${stageKey}"][data-slot-index="${slotIndex}"]`);
+  };
+
+  const scheduleDrawLines = () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(drawLines);
+    });
+  };
+
+  const drawLines = () => {
+    if (!bracketLines || !knockoutWrapper) {
+      return;
+    }
+    bracketLines.innerHTML = '';
+
+    const wrapperRect = knockoutWrapper.getBoundingClientRect();
+    const width = Math.ceil(wrapperRect.width);
+    const height = Math.ceil(wrapperRect.height);
+
+    if (!width || !height) {
+      return;
+    }
+
+    bracketLines.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    bracketLines.setAttribute('preserveAspectRatio', 'none');
+
+    const drawMatchConnection = (stageFrom, matchIndex, stageTo, targetIndex, direction) => {
+      const slot1 = getSlotElement(stageFrom, matchIndex * 2);
+      const slot2 = getSlotElement(stageFrom, matchIndex * 2 + 1);
+      const target = getSlotElement(stageTo, targetIndex);
+
+      if (!slot1 || !slot2 || !target) {
+        return;
+      }
+
+      const r1 = slot1.getBoundingClientRect();
+      const r2 = slot2.getBoundingClientRect();
+      const rt = target.getBoundingClientRect();
+      const isRight = direction === 'rtl';
+
+      const xStart = (isRight ? r1.left : r1.right) - wrapperRect.left;
+      const xEnd = (isRight ? rt.right : rt.left) - wrapperRect.left;
+
+      const y1 = r1.top + r1.height / 2 - wrapperRect.top;
+      const y2 = r2.top + r2.height / 2 - wrapperRect.top;
+      const yMid = (y1 + y2) / 2;
+      const yTarget = rt.top + rt.height / 2 - wrapperRect.top;
+
+      const offset = 18;
+      const xMid = isRight ? xStart - offset : xStart + offset;
+
+      const merge = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      merge.setAttribute('d', `M ${xStart} ${y1} V ${y2}`);
+      merge.setAttribute('stroke', '#94a3b8');
+      merge.setAttribute('stroke-width', '2');
+      merge.setAttribute('fill', 'none');
+      merge.setAttribute('stroke-linecap', 'round');
+
+      bracketLines.appendChild(merge);
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M ${xStart} ${yMid} H ${xMid} V ${yTarget} H ${xEnd}`);
+      path.setAttribute('stroke', '#94a3b8');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+
+      bracketLines.appendChild(path);
+    };
+
+    drawMatchConnection('r32', 0, 'r16', 0, 'ltr');
+    drawMatchConnection('r32', 1, 'r16', 1, 'ltr');
+    drawMatchConnection('r32', 2, 'r16', 2, 'ltr');
+    drawMatchConnection('r32', 3, 'r16', 3, 'ltr');
+    drawMatchConnection('r32', 4, 'r16', 4, 'ltr');
+    drawMatchConnection('r32', 5, 'r16', 5, 'ltr');
+    drawMatchConnection('r32', 6, 'r16', 6, 'ltr');
+    drawMatchConnection('r32', 7, 'r16', 7, 'ltr');
+
+    drawMatchConnection('r16', 0, 'qf', 0, 'ltr');
+    drawMatchConnection('r16', 1, 'qf', 1, 'ltr');
+    drawMatchConnection('r16', 2, 'qf', 2, 'ltr');
+    drawMatchConnection('r16', 3, 'qf', 3, 'ltr');
+
+    drawMatchConnection('qf', 0, 'sf', 0, 'ltr');
+    drawMatchConnection('qf', 1, 'sf', 1, 'ltr');
+    drawMatchConnection('sf', 0, 'final', 0, 'ltr');
+
+    drawMatchConnection('r32', 8, 'r16', 8, 'rtl');
+    drawMatchConnection('r32', 9, 'r16', 9, 'rtl');
+    drawMatchConnection('r32', 10, 'r16', 10, 'rtl');
+    drawMatchConnection('r32', 11, 'r16', 11, 'rtl');
+    drawMatchConnection('r32', 12, 'r16', 12, 'rtl');
+    drawMatchConnection('r32', 13, 'r16', 13, 'rtl');
+    drawMatchConnection('r32', 14, 'r16', 14, 'rtl');
+    drawMatchConnection('r32', 15, 'r16', 15, 'rtl');
+
+    drawMatchConnection('r16', 4, 'qf', 4, 'rtl');
+    drawMatchConnection('r16', 5, 'qf', 5, 'rtl');
+    drawMatchConnection('r16', 6, 'qf', 6, 'rtl');
+    drawMatchConnection('r16', 7, 'qf', 7, 'rtl');
+
+    drawMatchConnection('qf', 2, 'sf', 2, 'rtl');
+    drawMatchConnection('qf', 3, 'sf', 3, 'rtl');
+    drawMatchConnection('sf', 1, 'final', 1, 'rtl');
+  };
+
+  if (poolDropzone) {
+    poolDropzone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      poolDropzone.classList.add('drop-target');
+    });
+
+    poolDropzone.addEventListener('dragleave', () => {
+      poolDropzone.classList.remove('drop-target');
+    });
+
+    poolDropzone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      poolDropzone.classList.remove('drop-target');
+
+      try {
+        const payload = JSON.parse(event.dataTransfer.getData('text/plain'));
+
+        if (payload?.type !== 'slot' || !payload?.code) {
+          return;
+        }
+
+        // r32 is seeded from groups and must stay locked.
+        if (payload?.stage === 'r32') {
+          return;
+        }
+
+        removeCodeFromStageForward(payload.stage, payload.code);
+        emitKnockoutChanged();
+        renderKnockoutEditor();
+      } catch {
+        return;
+      }
+    });
+  }
+
+  const buildSeededR32 = (groupOrder) => {
+    if (!groupOrder || typeof groupOrder !== 'object') {
+      return Array(32).fill(null);
+    }
+
+    const groupByLetter = new Map();
+
+    GROUP_LETTERS.forEach((letter) => {
+      const codes = groupOrder[`Grupo ${letter}`];
+      groupByLetter.set(letter, Array.isArray(codes) ? codes : []);
+    });
+
+    const getPos = (letter, pos) => {
+      const codes = groupByLetter.get(letter) ?? [];
+      return typeof codes[pos] === 'string' ? codes[pos] : null;
+    };
+
+    const selectedThirdEntries = GROUP_LETTERS
+      .map((letter) => ({
+        letter,
+        code: getPos(letter, 2),
+      }))
+      .filter(({ code }) => typeof code === 'string' && selectedThirds.has(code));
+
+    const assignThirdsToFirsts = () => {
+      const firstMatchGroups = GROUP_LETTERS.slice(0, 8);
+      const orderedThirdEntries = [...selectedThirdEntries].sort((left, right) => {
+        const letterCompare = left.letter.localeCompare(right.letter);
+        if (letterCompare !== 0) {
+          return letterCompare;
+        }
+
+        return left.code.localeCompare(right.code);
+      });
+      const usedCodes = new Set();
+      const assignment = Array(8).fill(null);
+
+      const backtrack = (matchIndex) => {
+        if (matchIndex >= firstMatchGroups.length) {
+          return true;
+        }
+
+        const firstGroupLetter = firstMatchGroups[matchIndex];
+
+        for (const entry of orderedThirdEntries) {
+          if (usedCodes.has(entry.code) || entry.letter === firstGroupLetter) {
+            continue;
+          }
+
+          usedCodes.add(entry.code);
+          assignment[matchIndex] = entry.code;
+
+          if (backtrack(matchIndex + 1)) {
+            return true;
+          }
+
+          usedCodes.delete(entry.code);
+          assignment[matchIndex] = null;
+        }
+
+        return false;
+      };
+
+      if (backtrack(0)) {
+        return assignment;
+      }
+
+      const fallbackAssignment = [];
+      const fallbackUsed = new Set();
+
+      firstMatchGroups.forEach((firstGroupLetter, matchIndex) => {
+        const fallback = orderedThirdEntries.find((entry) => {
+          return !fallbackUsed.has(entry.code) && entry.letter !== firstGroupLetter;
+        });
+
+        if (!fallback) {
+          fallbackAssignment[matchIndex] = null;
+          return;
+        }
+
+        fallbackUsed.add(fallback.code);
+        fallbackAssignment[matchIndex] = fallback.code;
+      });
+
+      return fallbackAssignment;
+    };
+
+    const thirdAssignments = assignThirdsToFirsts();
+
+    const matches = [
+      [getPos('A', 0), thirdAssignments[0]],
+      [getPos('B', 0), thirdAssignments[1]],
+      [getPos('C', 0), thirdAssignments[2]],
+      [getPos('D', 0), thirdAssignments[3]],
+      [getPos('E', 0), thirdAssignments[4]],
+      [getPos('F', 0), thirdAssignments[5]],
+      [getPos('G', 0), thirdAssignments[6]],
+      [getPos('H', 0), thirdAssignments[7]],
+      [getPos('I', 0), getPos('L', 1)],
+      [getPos('J', 0), getPos('K', 1)],
+      [getPos('K', 0), getPos('J', 1)],
+      [getPos('L', 0), getPos('I', 1)],
+      [getPos('A', 1), getPos('B', 1)],
+      [getPos('C', 1), getPos('D', 1)],
+      [getPos('E', 1), getPos('F', 1)],
+      [getPos('G', 1), getPos('H', 1)],
+    ];
+
+    return matches.flatMap(([home, away]) => [home ?? null, away ?? null]);
+  };
+
+  const reseedKnockoutFromGroups = (groupOrder) => {
+    if (!knockoutState) {
+      return;
+    }
+
+    knockoutState.r32 = buildSeededR32(groupOrder);
+    knockoutState.r16 = Array(16).fill(null);
+    knockoutState.qf = Array(8).fill(null);
+    knockoutState.sf = Array(4).fill(null);
+    knockoutState.final = Array(2).fill(null);
+    knockoutState.champion = [null];
+  };
+
+  const hasDifferentSeed = (nextSeed) => {
+    if (!knockoutState || !Array.isArray(knockoutState.r32) || !Array.isArray(nextSeed)) {
+      return true;
+    }
+
+    if (knockoutState.r32.length !== nextSeed.length) {
+      return true;
+    }
+
+    for (let index = 0; index < nextSeed.length; index += 1) {
+      if (knockoutState.r32[index] !== nextSeed[index]) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  window.addEventListener('penca:init', (event) => {
+    const countries = event.detail?.countries ?? [];
+    const incomingMap = event.detail?.countriesByCode;
+    const initialPrediction = event.detail?.initialPrediction;
+
+    if (incomingMap instanceof Map) {
+      countriesByCode = incomingMap;
+    } else {
+      countriesByCode = new Map(countries.map((country) => [country.code, country]));
+    }
+
+    knockoutState = loadKnockoutPrediction(initialPrediction);
+    sanitizeKnockout();
+    emitKnockoutChanged();
+    renderQualifiedPool();
+    renderKnockoutEditor();
+  });
+
+  window.addEventListener('penca:groups-changed', (event) => {
+    qualifiedCodes = Array.isArray(event.detail?.qualifiedCodes) ? event.detail.qualifiedCodes : [];
+    const groupOrder = event.detail?.groupOrder;
+    selectedThirds = new Set(Array.isArray(event.detail?.selectedThirds) ? event.detail.selectedThirds : []);
+
+    if (!knockoutState) {
+      return;
+    }
+
+    const nextSeed = buildSeededR32(groupOrder);
+
+    if (hasDifferentSeed(nextSeed)) {
+      reseedKnockoutFromGroups(groupOrder);
+    }
+
+    sanitizeKnockout();
+    emitKnockoutChanged();
+    renderQualifiedPool();
+    renderKnockoutEditor();
+  });
+
+  window.addEventListener('resize', () => {
+    scheduleDrawLines();
+  });
+
+  if (knockoutWrapper) {
+    knockoutWrapper.addEventListener('scroll', () => {
+      scheduleDrawLines();
+    });
+  }
+
+  const pencaTabButton = document.querySelector('[data-tab-button="penca"]');
+
+  if (pencaTabButton) {
+    pencaTabButton.addEventListener('click', () => {
+      scheduleDrawLines();
+    });
+  }
+  })();
+</script>
+
+<style is:global>
+  .qualified-pool {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .pool-empty {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .pool-dropzone {
+    border: 1px dashed rgba(148, 163, 184, 0.35);
+    border-radius: 10px;
+    padding: 8px 10px;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 14px;
+    transition: 0.2s;
+  }
+
+  .pool-dropzone.drop-target {
+    border-color: rgba(34, 211, 238, 0.65);
+    color: #67e8f9;
+    background: rgba(8, 47, 73, 0.3);
+  }
+
+  .knockout-wrapper {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .bracket-lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .knockout-grid {
+    --match-height: 40px;
+    --match-gap: 16px;
+    padding: 8px 0 10px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .knockout-wrapper::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .knockout-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 10px;
+  }
+
+  .bracket-canvas {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    width: 100%;
+    min-width: 1280px;
+  }
+
+  .bracket-side {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .bracket-side.left {
+    flex-direction: row;
+  }
+
+  .bracket-side.right {
+    flex-direction: row-reverse;
+  }
+
+  .bracket-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 34px;
+    flex: 0 0 clamp(260px, 28vw, 340px);
+    min-width: 0;
+  }
+
+  .bracket-col {
+    background: transparent;
+    border: none;
+    padding: 0;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .knockout-title {
+    margin: 0 0 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #67e8f9;
+    text-align: center;
+    min-height: 14px;
+    font-weight: 700;
+  }
+
+  .knockout-slots {
+    display: grid;
+    min-width: 0;
+  }
+
+  .bracket-col.stage-r32 .knockout-slots {
+    gap: var(--match-gap);
+  }
+
+  .bracket-col.stage-r16 .knockout-slots {
+    gap: calc(var(--match-gap) * 3);
+  }
+
+  .bracket-col.stage-qf .knockout-slots {
+    gap: calc(var(--match-gap) * 7);
+  }
+
+  .bracket-col.stage-sf .knockout-slots {
+    gap: calc(var(--match-gap) * 15);
+  }
+
+  .bracket-col.stage-final .knockout-slots {
+    gap: calc(var(--match-gap) * 15);
+  }
+
+  .bracket-col.stage-champion .knockout-slots {
+    gap: 0;
+  }
+
+  .knockout-match {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .knockout-match.single {
+    gap: 0;
+  }
+
+  .bracket-col.stage-final .knockout-match {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .bracket-col.stage-final .knockout-slot {
+    width: 118px;
+    min-width: 118px;
+    max-width: 118px;
+    flex: 0 0 118px;
+  }
+
+  .knockout-slot {
+    position: relative;
+    height: var(--match-height);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 6px;
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    min-width: 0;
+    box-sizing: border-box;
+    background: linear-gradient(145deg, #0f172a, #1e293b);
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .knockout-slot.drop-target {
+    border-color: rgba(34, 211, 238, 0.8);
+    background: rgba(8, 47, 73, 0.55);
+  }
+
+  .slot-placeholder {
+    font-size: 11px;
+    color: #94a3b8;
+    padding: 0 6px;
+  }
+
+  .team-chip,
+  .slot-team {
+    display: block;
+    box-sizing: border-box;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(30, 41, 59, 0.9);
+    color: var(--text);
+    border-radius: 999px;
+    font-size: 12px;
+    padding: 7px 11px;
+    cursor: grab;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+  }
+
+  .qualified-pool .team-chip {
+    border-radius: 12px;
+    border-color: rgba(103, 232, 249, 0.35);
+    background: linear-gradient(155deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.9));
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.28);
+    font-weight: 600;
+  }
+
+  .qualified-pool .team-chip:hover {
+    border-color: rgba(103, 232, 249, 0.65);
+  }
+
+  .qualified-pool .team-chip.is-used {
+    border-color: rgba(16, 185, 129, 0.7);
+    background: linear-gradient(155deg, rgba(6, 78, 59, 0.95), rgba(15, 23, 42, 0.92));
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.45), 0 6px 14px rgba(15, 23, 42, 0.28);
+  }
+
+  .team-chip:active,
+  .slot-team:active {
+    cursor: grabbing;
+  }
+
+  .slot-team {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .seeded-team {
+    cursor: grab;
+    border-color: rgba(148, 163, 184, 0.28);
+    background: linear-gradient(155deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.92));
+  }
+
+  .slot-team.moved {
+    transform: scale(1.08);
+    box-shadow: 0 0 10px rgba(34, 211, 238, 0.7);
+  }
+
+  .r16-matchups {
+    display: grid;
+    gap: 16px;
+  }
+
+  .r16-matchup {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .r16-team-button {
+    border: 1px solid rgba(241, 245, 249, 0.85);
+    background: rgba(15, 23, 42, 0.92);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    cursor: grab;
+    transition: all 0.2s ease;
+    text-align: left;
+    height: var(--match-height);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .r16-team-button:hover {
+    border-color: rgba(124, 58, 237, 0.5);
+    background: rgba(30, 41, 59, 0.95);
+  }
+
+  @media (max-width: 768px) {
+    .bracket-canvas {
+      gap: 20px;
+      min-width: 1120px;
+    }
+
+    .bracket-col.stage-r32 .knockout-slots,
+    .bracket-col.stage-r16 .knockout-slots,
+    .bracket-col.stage-qf .knockout-slots,
+    .bracket-col.stage-sf .knockout-slots,
+    .bracket-col.stage-final .knockout-slots,
+    .bracket-col.stage-champion .knockout-slots {
+      gap: 12px;
+    }
+
+    .bracket-center {
+      flex: 0 0 260px;
+    }
+
+    .bracket-col.stage-final .knockout-slot {
+      width: 108px;
+      min-width: 108px;
+      max-width: 108px;
+      flex-basis: 108px;
+    }
+
+    .qualified-pool {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .qualified-pool .team-chip {
+      font-size: 11px;
+      padding: 6px 9px;
+    }
+
+  }
+
+  @media (max-width: 520px) {
+    .qualified-pool {
+      grid-template-columns: 1fr;
+    }
+
+  }
+</style>

@@ -1,0 +1,20 @@
+{
+  "name": "fast-fireball",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/mongoose": "^11.0.4",
+    "astro": "^6.1.1",
+    "mongoose": "^9.4.1"
+  }
+}
