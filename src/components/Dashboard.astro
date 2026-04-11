@@ -220,6 +220,62 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     return normalized.length ? normalized : null;
   };
 
+  const getDiscordAvatarUrl = (user) => {
+    if (!user?.discordId || !user?.avatar) {
+      return null;
+    }
+
+    const extension = user.avatar.startsWith('a_') ? 'gif' : 'png';
+    return `https://cdn.discordapp.com/avatars/${user.discordId}/${user.avatar}.${extension}?size=64`;
+  };
+
+  const getUserInitial = (username) => {
+    if (typeof username !== 'string') {
+      return '?';
+    }
+
+    const value = username.trim();
+    return value ? value.charAt(0).toUpperCase() : '?';
+  };
+
+  const createRankingAvatar = (user) => {
+    const avatar = createNode('span', 'ranking-avatar');
+    const fallback = createNode('span', 'ranking-avatar-fallback', getUserInitial(user?.username));
+    const avatarUrl = getDiscordAvatarUrl(user);
+
+    avatar.style.cssText =
+      'position:relative;width:16px;height:16px;border-radius:999px;overflow:hidden;flex:0 0 auto;display:inline-block;vertical-align:middle;';
+    fallback.style.cssText =
+      'position:absolute;inset:0;display:grid;place-items:center;font-size:9px;font-weight:700;color:#f8fafc;background:linear-gradient(135deg,rgba(51,65,85,.95),rgba(30,41,59,.95));';
+
+    avatar.appendChild(fallback);
+
+    if (!avatarUrl) {
+      avatar.classList.add('is-fallback');
+      return avatar;
+    }
+
+    const image = document.createElement('img');
+    image.className = 'ranking-avatar-image';
+    image.src = avatarUrl;
+    image.alt = `${user?.username ?? 'Usuario'} avatar`;
+    image.loading = 'lazy';
+    image.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;';
+
+    image.addEventListener('load', () => {
+      avatar.classList.add('is-loaded');
+    });
+
+    image.addEventListener('error', () => {
+      image.remove();
+      avatar.classList.remove('is-loaded');
+      avatar.classList.add('is-fallback');
+    });
+
+    avatar.appendChild(image);
+    return avatar;
+  };
+
   const normalizeGroupKey = (groupName) => {
     if (typeof groupName !== 'string') {
       return null;
@@ -999,10 +1055,22 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     users.forEach((user, index) => {
       const item = createNode('li', 'list-item ranking-item');
       const top = createNode('div', 'item-top ranking-row');
+      const userLabel = createNode('div', 'ranking-user');
+      const rankBadge = createNode('span', 'rank-badge', `#${index + 1} `);
+      const nameNode = createNode('strong', 'item-title', user.username);
+      const pointsNode = createNode('span', 'points-chip', ` ${user.points} pts`);
 
-      top.appendChild(createNode('span', 'rank-badge', `#${index + 1} `));
-      top.appendChild(createNode('strong', 'item-title', user.username));
-      top.appendChild(createNode('span', 'points-chip', ` ${user.points} pts`));
+      top.style.cssText = 'display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;';
+      userLabel.style.cssText = 'display:inline-flex;align-items:center;gap:6px;min-width:0;';
+      nameNode.style.cssText = 'font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      pointsNode.style.cssText = 'white-space:nowrap;';
+
+      userLabel.appendChild(createRankingAvatar(user));
+      userLabel.appendChild(nameNode);
+
+      top.appendChild(rankBadge);
+      top.appendChild(userLabel);
+      top.appendChild(pointsNode);
 
       item.appendChild(top);
       fragment.appendChild(item);
@@ -1534,9 +1602,58 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
 
   .ranking-row {
     display: grid;
-    grid-template-columns: 54px minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
+  }
+
+  .ranking-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .ranking-avatar {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(30, 41, 59, 0.8);
+    flex: 0 0 auto;
+  }
+
+  .ranking-avatar-fallback,
+  .ranking-avatar-image {
+    position: absolute;
+    inset: 0;
+  }
+
+  .ranking-avatar-fallback {
+    display: grid;
+    place-items: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: #f8fafc;
+    background: linear-gradient(135deg, rgba(51, 65, 85, 0.95), rgba(30, 41, 59, 0.95));
+  }
+
+  .ranking-avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .ranking-avatar.is-loaded .ranking-avatar-image {
+    opacity: 1;
+  }
+
+  .ranking-avatar.is-loaded .ranking-avatar-fallback {
+    opacity: 0;
   }
 
   .points-chip {
