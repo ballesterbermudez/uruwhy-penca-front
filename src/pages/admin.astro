@@ -1,5 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
+
+const BACKEND_URL = import.meta.env.PUBLIC_API_URL ?? import.meta.env.URL_BACKEND ?? 'http://localhost:3000';
 ---
 
 <Layout>
@@ -38,9 +40,9 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </section>
 
-  <script is:inline>
+  <script is:inline define:vars={{ BACKEND_URL }}>
     (() => {
-      const API_URL = 'http://localhost:3000';
+      const API_URL = BACKEND_URL;
       const ADMIN_DISCORD_ID = '179134666626826241';
 
       const GROUPS = [

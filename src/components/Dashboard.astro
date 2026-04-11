@@ -1,6 +1,9 @@
 ---
 import GroupPhaseCard from './GroupPhaseCard.astro';
 import KnockoutPhaseCard from './KnockoutPhaseCard.astro';
+
+const BACKEND_URL = import.meta.env.PUBLIC_API_URL ?? import.meta.env.URL_BACKEND ?? 'http://localhost:3000';
+const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
 ---
 
 <section id="hero">
@@ -12,7 +15,7 @@ import KnockoutPhaseCard from './KnockoutPhaseCard.astro';
   <p>Competi con tus amigos y domina el Mundial.</p>
 
   <div class="actions">
-    <a href="http://localhost:3000/auth/discord" class="btn discord" data-discord-button hidden>
+    <a href={DISCORD_AUTH_URL} class="btn discord" data-discord-button hidden>
       <svg viewBox="0 0 127.14 96.36" class="icon">
         <path
           fill="currentColor"
@@ -102,7 +105,7 @@ import KnockoutPhaseCard from './KnockoutPhaseCard.astro';
   </div>
 </section>
 
-<script is:inline>
+<script is:inline define:vars={{ BACKEND_URL }}>
   (() => {
   const discordButton = document.querySelector('[data-discord-button]');
   const adminButton = document.querySelector('[data-admin-button]');
@@ -125,7 +128,7 @@ import KnockoutPhaseCard from './KnockoutPhaseCard.astro';
   const pencaTabPanel = document.querySelector('[data-tab-panel="penca"]');
   const resultadosTabButton = document.querySelector('[data-tab-button="resultados"]');
   const resultadosTabPanel = document.querySelector('[data-tab-panel="resultados"]');
-  const API_URL = 'http://localhost:3000';
+  const API_URL = BACKEND_URL;
   const ADMIN_DISCORD_ID = '179134666626826241';
   const GROUPS_ORDER = [
     'Grupo A',
