@@ -165,6 +165,7 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
   let selectedThirdCodes = [];
   let currentPrediction = {
     groupOrder: null,
+    selectedThirds: [],
     knockout: null,
   };
   let officialResults = {
@@ -771,8 +772,17 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     resultsBroadcastChannel = null;
   }
   const setCurrentPrediction = (prediction) => {
+    const normalizedThirds = Array.isArray(prediction?.selectedThirds)
+      ? prediction.selectedThirds
+        .map((code) => normalizeCode(code))
+        .filter((code) => Boolean(code))
+        .slice(0, REQUIRED_SELECTED_THIRDS)
+      : [];
+
+    selectedThirdCodes = normalizedThirds;
     currentPrediction = {
       groupOrder: normalizeGroupOrder(prediction?.groupOrder),
+      selectedThirds: normalizedThirds,
       knockout: normalizeKnockout(prediction?.knockout),
     };
   };
@@ -782,6 +792,10 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
 
     if (currentPrediction.groupOrder) {
       payload.groupOrder = currentPrediction.groupOrder;
+    }
+
+    if (Array.isArray(currentPrediction.selectedThirds) && currentPrediction.selectedThirds.length) {
+      payload.selectedThirds = currentPrediction.selectedThirds;
     }
 
     if (currentPrediction.knockout) {
@@ -1016,6 +1030,8 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
         return;
       }
 
+      currentPrediction.selectedThirds = [...selectedThirdCodes];
+
       const confirmed = window.confirm('Quieres enviar realmente tu prediccion?');
 
       if (!confirmed) {
@@ -1026,6 +1042,12 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
       predictionButton.classList.add('is-loading');
 
       try {
+        const submissionPayload = {
+          groupOrder,
+          selectedThirds: selectedThirdCodes,
+          ...(knockout ? { knockout } : {}),
+        };
+
         const response = await fetch(`${API_URL}/api/predictions`, {
           method: 'POST',
           headers: {
@@ -1033,10 +1055,7 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
             ...getAuthHeaders(),
           },
           credentials: 'include',
-          body: JSON.stringify({
-            groupOrder,
-            knockout,
-          }),
+          body: JSON.stringify(submissionPayload),
         });
 
         if (!response.ok) {
@@ -1302,6 +1321,7 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
   window.addEventListener('penca:groups-changed', (event) => {
     const nextGroupOrder = event.detail?.groupOrder;
     selectedThirdCodes = Array.isArray(event.detail?.selectedThirds) ? event.detail.selectedThirds : [];
+    currentPrediction.selectedThirds = [...selectedThirdCodes];
 
     if (nextGroupOrder && typeof nextGroupOrder === 'object') {
       currentPrediction.groupOrder = nextGroupOrder;
