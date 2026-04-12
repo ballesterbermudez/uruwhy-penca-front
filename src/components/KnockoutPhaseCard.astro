@@ -1,4 +1,4 @@
-<div class="card penca-card">
+<div class="card penca-card knockout-locked">
   <h2>🥇 Eliminatoria</h2>
   <p class="penca-hint">Las llaves de 16avos se arman automáticamente según el orden de grupos y mejores terceros.</p>
   <p class="penca-hint">EL BRACKET SE CONSTRUYE ARRASTRANDO LOS EQUIPOS A LA SIGUIENTE FASE DESDE EL MISMO BRACKET.</p>
@@ -7,6 +7,11 @@
   <div class="knockout-wrapper" data-knockout-wrapper>
     <svg class="bracket-lines" data-bracket-lines></svg>
     <div class="knockout-grid" data-knockout-board></div>
+  </div>
+
+  <div class="knockout-coming-soon" aria-hidden="true">
+    <span class="knockout-coming-soon__title">PROXIMAMENTE</span>
+    <span class="knockout-coming-soon__copy">La fase eliminatoria se habilitara mas adelante.</span>
   </div>
 </div>
 
@@ -980,6 +985,53 @@
 </script>
 
 <style is:global>
+  .knockout-locked {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .knockout-locked > :not(.knockout-coming-soon) {
+    filter: blur(1.2px) saturate(0.8);
+    opacity: 0.45;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .knockout-coming-soon {
+    position: absolute;
+    inset: 0;
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 20px;
+    text-align: center;
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.64), rgba(2, 6, 23, 0.78));
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    pointer-events: all;
+    cursor: not-allowed;
+  }
+
+  .knockout-coming-soon__title {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    color: rgba(236, 254, 255, 0.95);
+    text-shadow: 0 12px 28px rgba(8, 47, 73, 0.55);
+  }
+
+  .knockout-coming-soon__copy {
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(203, 213, 225, 0.95);
+    letter-spacing: 0.02em;
+  }
+
   .qualified-pool {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

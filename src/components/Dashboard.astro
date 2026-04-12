@@ -65,12 +65,12 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     <div class="tab-panel-content tab-panel-content--penca">
       <section id="penca-board" class="penca-board">
         <GroupPhaseCard />
+        <div class="penca-submit">
+          <button type="button" class="btn prediction" data-submit-prediction disabled>Realizar prediccion</button>
+          <p class="submit-hint" data-submit-hint>Completa grupos y selecciona los 8 mejores terceros para poder enviar.</p>
+        </div>
         <KnockoutPhaseCard />
       </section>
-      <div class="penca-submit">
-        <button type="button" class="btn prediction" data-submit-prediction disabled>Realizar prediccion</button>
-        <p class="submit-hint" data-submit-hint>Completá grupos y eliminatoria para poder enviar.</p>
-      </div>
     </div>
   </div>
 
@@ -153,6 +153,7 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     ['final', 'Final'],
     ['champion', 'Campeón'],
   ];
+  const REQUIRED_SELECTED_THIRDS = 8;
 
   const dashboardState = {
     users: [],
@@ -161,6 +162,7 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
   };
 
   let sessionUser = null;
+  let selectedThirdCodes = [];
   let currentPrediction = {
     groupOrder: null,
     knockout: null,
@@ -868,8 +870,8 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
   };
 
   const hasCompletePrediction = () => {
-    const { groupOrder, knockout } = currentPrediction;
-    return isGroupOrderComplete(groupOrder) && isKnockoutComplete(knockout);
+    const { groupOrder } = currentPrediction;
+    return isGroupOrderComplete(groupOrder) && selectedThirdCodes.length === REQUIRED_SELECTED_THIRDS;
   };
 
   const updatePredictionButtonState = () => {
@@ -883,11 +885,23 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
       return;
     }
 
+    if (!isGroupOrderComplete(currentPrediction.groupOrder)) {
+      predictionButton.disabled = true;
+      submitHint.textContent = 'Completa todos los grupos para poder enviar.';
+      return;
+    }
+
+    if (selectedThirdCodes.length !== REQUIRED_SELECTED_THIRDS) {
+      predictionButton.disabled = true;
+      submitHint.textContent = `Selecciona ${REQUIRED_SELECTED_THIRDS} mejores terceros para poder enviar.`;
+      return;
+    }
+
     const readyToSubmit = hasCompletePrediction();
     predictionButton.disabled = !readyToSubmit;
     submitHint.textContent = readyToSubmit
       ? 'Tu prediccion esta lista para enviarse.'
-      : 'Completá grupos y eliminatoria para poder enviar.';
+      : 'Completa grupos y selecciona los mejores terceros para poder enviar.';
   };
 
   const enforceDashboardTab = () => {
@@ -990,8 +1004,14 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
 
       const { groupOrder, knockout } = currentPrediction;
 
-      if (!isGroupOrderComplete(groupOrder) || !isKnockoutComplete(knockout)) {
-        alert('Tu prediccion no esta completa. Revisa grupos y eliminatoria.');
+      if (!isGroupOrderComplete(groupOrder)) {
+        alert('Tu prediccion no esta completa. Revisa la fase de grupos.');
+        updatePredictionButtonState();
+        return;
+      }
+
+      if (selectedThirdCodes.length !== REQUIRED_SELECTED_THIRDS) {
+        alert(`Debes seleccionar ${REQUIRED_SELECTED_THIRDS} mejores terceros para enviar tu prediccion.`);
         updatePredictionButtonState();
         return;
       }
@@ -1281,6 +1301,7 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
 
   window.addEventListener('penca:groups-changed', (event) => {
     const nextGroupOrder = event.detail?.groupOrder;
+    selectedThirdCodes = Array.isArray(event.detail?.selectedThirds) ? event.detail.selectedThirds : [];
 
     if (nextGroupOrder && typeof nextGroupOrder === 'object') {
       currentPrediction.groupOrder = nextGroupOrder;
@@ -2223,7 +2244,8 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
   }
 
   .penca-submit {
-    margin-top: 18px;
+    margin-top: 0;
+    margin-bottom: 16px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
