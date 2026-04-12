@@ -798,8 +798,11 @@
       }))
       .filter(({ code }) => typeof code === 'string' && selectedThirds.has(code));
 
+    // Matches with 1ros vs mejores 3ros according to the visual bracket layout.
+    const FIRST_GROUPS_VS_THIRDS_ORDER = ['E', 'I', 'D', 'G', 'A', 'L', 'B', 'K'];
+
     const assignThirdsToFirsts = () => {
-      const firstMatchGroups = GROUP_LETTERS.slice(0, 8);
+      const firstMatchGroups = FIRST_GROUPS_VS_THIRDS_ORDER;
       const orderedThirdEntries = [...selectedThirdEntries].sort((left, right) => {
         const letterCompare = left.letter.localeCompare(right.letter);
         if (letterCompare !== 0) {
@@ -864,22 +867,23 @@
     const thirdAssignments = assignThirdsToFirsts();
 
     const matches = [
-      [getPos('A', 0), thirdAssignments[0]],
-      [getPos('B', 0), thirdAssignments[1]],
-      [getPos('C', 0), thirdAssignments[2]],
-      [getPos('D', 0), thirdAssignments[3]],
-      [getPos('E', 0), thirdAssignments[4]],
-      [getPos('F', 0), thirdAssignments[5]],
-      [getPos('G', 0), thirdAssignments[6]],
-      [getPos('H', 0), thirdAssignments[7]],
-      [getPos('I', 0), getPos('L', 1)],
-      [getPos('J', 0), getPos('K', 1)],
-      [getPos('K', 0), getPos('J', 1)],
-      [getPos('L', 0), getPos('I', 1)],
+      // Left side (top -> bottom), then right side (top -> bottom), matching the image.
+      [getPos('E', 0), thirdAssignments[0]],
+      [getPos('I', 0), thirdAssignments[1]],
       [getPos('A', 1), getPos('B', 1)],
-      [getPos('C', 1), getPos('D', 1)],
-      [getPos('E', 1), getPos('F', 1)],
-      [getPos('G', 1), getPos('H', 1)],
+      [getPos('F', 0), getPos('C', 1)],
+      [getPos('K', 1), getPos('L', 1)],
+      [getPos('H', 0), getPos('J', 1)],
+      [getPos('D', 0), thirdAssignments[2]],
+      [getPos('G', 0), thirdAssignments[3]],
+      [getPos('C', 0), getPos('F', 1)],
+      [getPos('E', 1), getPos('I', 1)],
+      [getPos('A', 0), thirdAssignments[4]],
+      [getPos('L', 0), thirdAssignments[5]],
+      [getPos('J', 0), getPos('H', 1)],
+      [getPos('D', 1), getPos('G', 1)],
+      [getPos('B', 0), thirdAssignments[6]],
+      [getPos('K', 0), thirdAssignments[7]],
     ];
 
     return matches.flatMap(([home, away]) => [home ?? null, away ?? null]);
