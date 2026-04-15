@@ -192,6 +192,16 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
     return {};
   };
 
+  const buildDiscordLoginUrl = () => {
+    const returnPath = `${window.location.pathname}${window.location.search}` || '/';
+    const url = new URL('/auth/discord', API_URL);
+
+    url.searchParams.set('state', returnPath);
+    url.searchParams.set('redirectTo', returnPath);
+
+    return url.toString();
+  };
+
   const createNode = (tag, className, text) => {
     const node = document.createElement(tag);
 
@@ -1215,6 +1225,8 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
       if (!discordButton) {
         return;
       }
+
+      discordButton.href = buildDiscordLoginUrl();
 
       if (sessionUser?.discordId) {
         discordButton.hidden = true;

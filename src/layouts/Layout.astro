@@ -90,8 +90,19 @@ const DISCORD_AUTH_URL = `${BACKEND_URL}/auth/discord`;
         return {};
       };
 
+      const buildDiscordLoginUrl = () => {
+        const returnPath = `${window.location.pathname}${window.location.search}` || '/';
+        const url = new URL('/auth/discord', BACKEND_URL);
+
+        url.searchParams.set('state', returnPath);
+        url.searchParams.set('redirectTo', returnPath);
+
+        return url.toString();
+      };
+
       if (status && action && user && avatar && username && logout && bar) {
         persistSessionFromHash();
+        action.href = buildDiscordLoginUrl();
 
         const setLoggedOut = () => {
           bar.dataset.state = 'logged-out';
